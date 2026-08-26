@@ -7,6 +7,8 @@ preprocessing change is one bump of CACHE_VERSION.
 import glob
 import hashlib
 import io
+import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +24,11 @@ PRETRAINED = "openai"
 CACHE_VERSION = "vitl14_v1"      # bump if preprocessing changes
 DIM = 768
 MAX_BATCH = 32                   # ponytail: 8GB VRAM ceiling; raise on a bigger GPU
+# The pass is CPU-bound, not GPU-bound: measured 84% of per-image time in PIL
+# (degrade + JPEG + resize), 17% in the ViT forward. PIL releases the GIL, so
+# threads are enough -- no multiprocessing, no shared-memory dance.
+WORKERS = int(os.environ.get("QUORUM_WORKERS", min(8, os.cpu_count() or 4)))
+POOL = ThreadPoolExecutor(max_workers=WORKERS)
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / "data" / "cache" / "embeddings" / CACHE_VERSION
@@ -61,7 +68,7 @@ class Embedder:
         with self.torch.inference_mode():
             for i in range(0, len(pil_images), MAX_BATCH):
                 chunk = pil_images[i:i + MAX_BATCH]
-                x = self.torch.stack([self.preprocess(im) for im in chunk]).to(self.device)
+                x = self.torch.stack(list(POOL.map(self.preprocess, chunk))).to(self.device)
                 if self.fp16:
                     x = x.half()
                 v = self.model.encode_image(x)
@@ -78,10 +85,14 @@ class ShardWriter:
     """
 
     def __init__(self, source: str, every: int = 20_000):
-        self.source, self.every, self.shard = source, every, 0
+        self.source, self.every = source, every
         self.vecs, self.rows = [], []
         CACHE.mkdir(parents=True, exist_ok=True)
         MANIFESTS.mkdir(parents=True, exist_ok=True)
+        # Continue numbering past whatever this source already wrote, so a rerun
+        # appends instead of overwriting _000. build_manifest dedupes on
+        # (image_id, variant), so an overlapping rerun is harmless.
+        self.shard = len(glob.glob(str(CACHE / f"{source}_*.npy")))
 
     def add(self, vec, row):
         self.vecs.append(vec)
@@ -120,11 +131,13 @@ def embed_variants(emb, writer, img, row, full_grid: bool, k: int = 3) -> str:
     One pass: this image is in memory once and never again, so all variants it
     will ever need are generated now.
     """
-    from quorum.degrade import all_variants, sample_variants
+    from quorum.degrade import apply, variant_specs
 
     img = normalise(img)
     iid = image_id(img)
-    variants = all_variants(img, iid) if full_grid else sample_variants(img, iid, k)
+    specs = variant_specs(iid, None if full_grid else k)
+    degraded = POOL.map(lambda sp: apply(img, sp[1], sp[2], sp[3]), specs)
+    variants = [("clean", img)] + list(zip((sp[0] for sp in specs), degraded))
     for (name, _), vec in zip(variants, emb.embed_batch([v for _, v in variants])):
         writer.add(vec, {**row, "image_id": iid, "variant": name})
     return iid

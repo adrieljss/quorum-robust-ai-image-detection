@@ -31,6 +31,12 @@ def seed_from_id(image_id: str) -> int:
     return int(image_id[:8], 16)
 
 
+def rng_for(image_id: str, i: int):
+    """RNG for setting `i` of one image. Seeded per variant, not per image, so
+    variants can be generated in any order or in parallel and still reproduce."""
+    return np.random.default_rng([seed_from_id(image_id), i])
+
+
 def apply(img: Image.Image, kind: str, param, rng=None) -> Image.Image:
     rng = rng if rng is not None else np.random.default_rng(0)
 
@@ -70,10 +76,21 @@ def apply(img: Image.Image, kind: str, param, rng=None) -> Image.Image:
 
 def all_variants(img: Image.Image, image_id: str):
     """Full grid: clean + all 14 settings = 15. For EVAL splits."""
-    rng = np.random.default_rng(seed_from_id(image_id))
-    out = [("clean", img)] + [(variant_name(k, p), apply(img, k, p, rng)) for k, p in FLAT]
+    out = [("clean", img)] + [
+        (variant_name(k, p), apply(img, k, p, rng_for(image_id, i)))
+        for i, (k, p) in enumerate(FLAT)
+    ]
     assert len(out) == N_VARIANTS
     return out
+
+
+def variant_specs(image_id: str, k: int | None = None):
+    """[(name, kind, param, rng)] without touching pixels -- lets a caller run the
+    actual transforms in a thread pool. k=None means the full grid."""
+    idx = range(N_SETTINGS) if k is None else sorted(
+        np.random.default_rng(seed_from_id(image_id)).choice(
+            N_SETTINGS, size=min(k, N_SETTINGS), replace=False))
+    return [(variant_name(*FLAT[i]), *FLAT[i], rng_for(image_id, i)) for i in idx]
 
 
 def sample_variants(img: Image.Image, image_id: str, k: int = 3):
@@ -81,10 +98,8 @@ def sample_variants(img: Image.Image, image_id: str, k: int = 3):
 
     Deterministic given image_id, so a rerun reproduces the same augmentation.
     """
-    rng = np.random.default_rng(seed_from_id(image_id))
-    idx = rng.choice(N_SETTINGS, size=min(k, N_SETTINGS), replace=False)
     return [("clean", img)] + [
-        (variant_name(*FLAT[i]), apply(img, *FLAT[i], rng=rng)) for i in idx
+        (name, apply(img, kind, param, r)) for name, kind, param, r in variant_specs(image_id, k)
     ]
 
 

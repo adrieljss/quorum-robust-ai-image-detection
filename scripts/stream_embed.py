@@ -38,48 +38,63 @@ def main(a):
     writer = ShardWriter(a.source)
 
     ds = load_dataset(a.dataset, split=a.split, streaming=True)
+    if a.skip:
+        ds = ds.skip(a.skip)          # resume: same seed + same skip = same position
     if a.shuffle:
         # Small buffer on purpose: SID_Set is already class-interleaved (verified),
         # so the value here is shard-order shuffling, not the buffer. A 10k buffer
         # downloads ~5.7GB before the progress bar moves once -- looks like a hang.
         ds = ds.shuffle(seed=42, buffer_size=1_000)
 
-    counts, seen = {0: 0, 1: 0}, 0
+    counts, seen, rows_seen = {0: 0, 1: 0}, 0, a.skip
     pbar = tqdm(total=a.n_per_class * 2, desc=a.source)
 
-    for ex in ds:
-        raw = ex.get(a.label_field, "")
-        y = to_label(raw)
-        if y is None:
-            continue
+    try:
+      for ex in ds:
+          rows_seen += 1
+          raw = ex.get(a.label_field, "")
+          y = to_label(raw)
+          if y is None:
+              continue
 
-        seen += 1
-        # A wrong label mapping silently produces a single-class training set
-        # and streams the whole dataset to do it. Fail in seconds instead.
-        if seen == LABEL_CHECK_AT and min(counts.values()) == 0:
-            raise SystemExit(
-                f"label mapping looks wrong: {seen} images, counts={counts}, "
-                f"last {a.label_field}={raw!r}. Run scripts/inspect_dataset.py "
-                f"and fix to_label()/INT_MAP."
-            )
+          seen += 1
+          # A wrong label mapping silently produces a single-class training set
+          # and streams the whole dataset to do it. Fail in seconds instead.
+          if seen == LABEL_CHECK_AT and min(counts.values()) == 0:
+              raise SystemExit(
+                  f"label mapping looks wrong: {seen} images, counts={counts}, "
+                  f"last {a.label_field}={raw!r}. Run scripts/inspect_dataset.py "
+                  f"and fix to_label()/INT_MAP."
+              )
 
-        if counts[y] >= a.n_per_class:
-            if all(c >= a.n_per_class for c in counts.values()):
-                break
-            continue
-        counts[y] += 1
+          if counts[y] >= a.n_per_class:
+              if all(c >= a.n_per_class for c in counts.values()):
+                  break
+              continue
+          counts[y] += 1
 
-        sub = SUBCLASS[int(raw)] if str(raw).strip().isdigit() else str(raw).lower()
-        embed_variants(emb, writer, ex[a.image_field], {
-            "label": y, "source": a.source, "subclass": sub,
-            "generator": str(ex.get("generator", "unknown")),
-            "split": a.assign_split,
-        }, a.full_grid, a.n_sampled)
-        pbar.update(1)
+          sub = SUBCLASS[int(raw)] if str(raw).strip().isdigit() else str(raw).lower()
+          embed_variants(emb, writer, ex[a.image_field], {
+              "label": y, "source": a.source, "subclass": sub,
+              "generator": str(ex.get("generator", "unknown")),
+              "split": a.assign_split,
+          }, a.full_grid, a.n_sampled)
+          pbar.update(1)
 
-    pbar.close()
-    writer.flush()
-    print(f"done: {sum(counts.values())} images {counts}")
+    except KeyboardInterrupt:
+        print("\ninterrupted by user")
+    except Exception as e:
+        print(f"\nSTREAM FAILED: {type(e).__name__}: {e}")
+    finally:
+        # Always keep what was already embedded -- a multi-hour job must not lose
+        # an hour of GPU time to a dropped connection.
+        pbar.close()
+        writer.flush()
+        print(f"done: {sum(counts.values())} images {counts}  rows_seen={rows_seen}")
+        if sum(counts.values()) < 2 * a.n_per_class:
+            print(f"INCOMPLETE -- resume with: --skip {rows_seen} "
+                  f"--n-per-class {a.n_per_class - min(counts.values())} "
+                  f"--source {a.source}")
 
 
 if __name__ == "__main__":
@@ -94,4 +109,6 @@ if __name__ == "__main__":
     p.add_argument("--full-grid", action="store_true", help="all 15 variants -- EVAL splits")
     p.add_argument("--n-sampled", type=int, default=3, help="variants/image when not --full-grid")
     p.add_argument("--shuffle", action="store_true")
+    p.add_argument("--skip", type=int, default=0,
+                   help="skip N rows first -- resume a crashed run (see its final line)")
     main(p.parse_args())
