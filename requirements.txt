@@ -1,0 +1,17 @@
+# NVIDIA GPU: install torch FIRST from the CUDA index, or pip gives you the
+# CPU-only wheel and the embedding pass takes 20 hours instead of 2:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu130
+# cu130 matches driver CUDA 13.x. Older driver -> cu128 or cu126.
+# Check with: python -c "import torch; print(torch.cuda.is_available())"
+torch>=2.6
+open_clip_torch
+datasets>=2.14
+huggingface_hub
+numpy
+pandas
+pyarrow
+pillow
+opencv-python>=4.8
+scikit-learn
+matplotlib
+tqdm
