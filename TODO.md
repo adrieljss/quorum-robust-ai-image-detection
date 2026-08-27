@@ -36,18 +36,21 @@ already holds. If *per model*, there is headroom for a second backbone.
 - [x] `main.csv` + `stats.md`, assertions A–F green
 - [x] `sid_tampered_eval` face + spectral (1,499 spec / 244 face)
 
-### Handover — do these first, Albert and Kacey are waiting
-- [ ] **Create a HuggingFace organization** — personal repos cannot be shared
-      privately, so this blocks the push entirely. Free, ~2 min.
+### Handover — DONE, Albert and Kacey are unblocked
+- [x] HuggingFace org `techjam2026blueberryjam` created
+- [x] `push_cache.py` -> `techjam2026blueberryjam/quorum-cache`, 1,210 MB, private
+- [x] `docs/HANDOVER.md` §1 points at the org path
 - [ ] Invite Albert, Kacey, Michael, Valentino with **write** access
-- [ ] `push_cache.py` to `<org>/quorum-cache` (~1.3GB)
 - [ ] Delete the stale personal `adrieljss/quorum-cache`
-- [ ] Update `docs/HANDOVER.md` §1 with the real org path
+- [ ] **Revoke the write token that was pasted in chat**, issue a fresh one
 
 ### Second push — nobody is blocked on these
-- [ ] `organizer_val` face + spectral pass (~55 min)
-- [ ] `faces/` dataset — `hf download pujanpaudel/deepfake_face_classification`
-- [ ] Re-run `build_manifest.py`; assertions must stay green
+- [x] `organizer_val` face + spectral pass — 75,000 spectral / 3,941 face rows
+- [x] ~~`faces/` dataset~~ — **CUT.** Face probe saturates at ~500 images
+      (500 -> 0.8892 OOD clean, all 4,128 -> 0.8952). 5.4 GB and a `.rar` to
+      feed a model that plateaued eight times ago. Coverage/demographic
+      diversity is a *limitations* note, not a download.
+- [x] Re-run `build_manifest.py` — 330,851 rows, assertions A–F green
 - [ ] `push_cache.py` again — `pull_cache.py` picks up the delta
 
 ### Handed to Michael or Valentino
@@ -102,7 +105,10 @@ credit: a demo without fusion is a demo of one probe.
 
 - [ ] `scripts/eval_grid.py` — clean vs all 14 transforms, per branch and fused
 - [ ] **Robustness Evaluation Summary** table (required deliverable)
-- [ ] Reference number on `organizer_val` (needs WildFake first)
+- [ ] Reference number on `organizer_val` — **blocked, and hard-blocked.**
+      COCO val2017 is 100% real, so the organizer set has no positive class and
+      **no AUROC can be computed at all** until WildFake DALL·E Advanced lands.
+      This is the only externally-comparable number we get. Chase it.
 - [ ] Per-content-bucket AUROC — wild variance means we are partly reading
       semantics, and saying so is a strength
 

@@ -26,7 +26,7 @@ Contamination does not look like a bug. It looks like an unusually good number.
 ## 1. Getting the data
 
 ```powershell
-$env:QUORUM_CACHE_REPO = "adrieljss/quorum-cache"
+$env:QUORUM_CACHE_REPO = "techjam2026blueberryjam/quorum-cache"
 python scripts/pull_cache.py          # ~1.3GB, vectors + manifests, no images
 ```
 
@@ -51,10 +51,15 @@ X, R = load("sid_train")    # X[i] is the 768-d vector for row R.iloc[i]
 | `sid_calib` | calib | 3,996 | yes | 3,996 | 964 |
 | `so_fake_ood` | test_ood | 6,242 | yes | 5,987 | 1,910 |
 | `sid_tampered_eval` | test_ood | 1,499 | yes | 1,499 | 244 |
-| `organizer_val` | test_organizer | 5,000 | yes | **none** | **none** |
+| `organizer_val` | test_organizer | 5,000 | yes | 5,000 | 386 |
 
 Face coverage is ~25% by nature: most images contain no detectable face. That is
 not missing data, it is the `face_present` flag doing its job.
+
+**`organizer_val` is the exception: 386 of 5,000 (7.7%).** COCO val2017 is
+object-centric and faces in scene photos usually fall under the 64px minimum.
+On the organizer benchmark the face branch abstains on 92% of images, so fusion
+must lean on general+spectral there. Do not read that as the face probe failing.
 
 **Variants.** 15 per image (14 degradation settings + clean). Train images carry
 clean + 3 sampled; eval images carry the full grid. Names are the join key:
@@ -147,6 +152,10 @@ Two measured facts that will shape your model:
 - **`face_px` matters.** Box sizes run 64–181px, so the same nominal degradation
   lands ~2.8× harder on a small face upscaled to 224 than a large one downscaled
   to it. The column is in every row. Condition on it.
+- **More face data will not help.** Learning curve on `face_sid_train`, eval
+  on `face_so_fake_ood`: 500 imgs -> 0.8892 clean / 0.8407 worst; all 4,128 ->
+  0.8952 / 0.8620. Flat. A 769-parameter probe cannot absorb more. Spend the
+  time on conditioning and fusion, not collection.
 - **The detector dies under heavy degradation** — `noise010` loses 77% of faces,
   `resize025` and `noise005` lose 15%. Those images have no face row at all.
   That is honest system behaviour, not a bug: at inference you do not have a
@@ -210,8 +219,8 @@ wired to them.
 | item | owner | blocking |
 |---|---|---|
 | WildFake DALL·E Advanced (ModelScope, manual) | Michael or Valentino | organizer benchmark |
-| `organizer_val` face + spectral pass (~55 min) | Adriel | fusion on organizer set |
-| `faces/` dataset — `pujanpaudel/deepfake_face_classification` | Adriel | better face probe |
+| ~~`organizer_val` face + spectral~~ — **done** | — | nothing |
+| ~~`faces/` dataset~~ — **cut**, face probe saturates at ~500 imgs | — | nothing |
 | `real_extra/openimages` — real-class diversity | optional | — |
 | `social_real/` — 200–500 screenshots, manual | Michael / Valentino | deployment realism |
 | text branch: build or cut | Kacey | — |
