@@ -79,8 +79,14 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
 - [x] `quorum/detectors/face.py`, conditioning on `face_px` — 0.9382 clean /
       0.9151 worst, up from 0.8952 / 0.8620
 - [x] Per-variant AUC **and coverage**
-- [ ] Explain why face AUC *rises* under blur (0.9382 → 0.9500 at `blur20`).
-      Not survivorship: `blur20` retains 99.7% of faces. Cause unknown
+- [x] Explain why face AUC *rises* under blur (0.9382 → 0.9500 at `blur20`).
+      **Shortcut learning, not survivorship** — blur hurts in-distribution
+      (-0.0047) and helps OOD (+0.0314). The probe partly reads resampling
+      texture in upsampled crops; gain concentrates in small faces (+0.047 vs
+      +0.009) and is anti-correlated with clean AUC across 14 generators
+      (r = -0.685, p = 0.007). HANDOVER-MODELS.md §8
+- [x] Linear vs MLP on the face branch — **linear wins**, 256x fewer parameters
+      and a smaller transfer gap. Was a documented default, now a result. §9
 
 ### Kacey — text
 - [x] Decide build or cut. **Cut.** Nine hours of OCR for a 7-parameter model

@@ -220,7 +220,124 @@ an abstention. Your file, your call on where the guard belongs.
 
 ---
 
-## 8. Decisions I took
+## 8. The blur anomaly, solved — it is shortcut learning
+
+Face AUC rises under blur (0.9382 clean → 0.9500 at `blur20`). We explained that
+as survivorship: the detector drops marginal faces first, so the survivors are
+easier. **That explanation is wrong**, and it is currently in `HANDOVER.md` §5a,
+`docs/robustness.md`, and my own notes.
+
+Ruled out, in order:
+
+- **Not survivorship.** On the identical 1,624 images present at both `clean` and
+  `blur20`, AUC still rises 0.8951 → 0.9264. Same faces, same images.
+- **Not `face_px`.** The embeddings-only probe gains *more* (+0.0313) than the
+  769-d one (+0.0128), so the added feature is not the cause.
+- **Not better class separation.** Fisher ratio is flat: 0.2684 clean, 0.2693 at
+  `blur20`. Between-class distance actually falls; within-class scatter falls with it.
+
+What it actually is:
+
+```
+                     clean   blur20     gain
+sid_calib  (seen)   0.9992   0.9945   -0.0047
+so_fake_ood (new)   0.8951   0.9264   +0.0314
+```
+
+Blur **hurts** on training generators and **helps** on unseen ones. Degradation
+cannot genuinely improve a detector, so the clean-image probe must be leaning on
+a cue that holds in-distribution and misleads out of it. Blur destroys the cue.
+
+Two measurements identify it. The gain concentrates in the faces that get
+upsampled hardest to fill the 224px crop:
+
+```
+band     px range     clean   blur20     gain
+small      64-153    0.8568   0.9038   +0.0470
+mid       153-305    0.9231   0.9355   +0.0124
+large    305-2192    0.9387   0.9473   +0.0086
+```
+
+And across 14 generators with enough face rows, 11 improve, mean +0.0308 — with
+the gain strongly anti-correlated with clean AUC (**Pearson r = -0.685,
+p = 0.007**). Seedream3.0 at 0.7684 clean gains +0.0834; Hidream at 0.9541 gains
++0.0033. Blur helps most exactly where the probe was failing.
+
+So the probe partly reads high-frequency texture in the upsampled crop —
+resampling and compression residue that is pipeline-specific, not
+provenance-specific. On familiar generators it is a valid shortcut, worth 0.9992.
+On a new generator it misfires.
+
+**This reframes a claim we are currently making.** `docs/robustness.md` reports
+face AUC rising under blur as a robustness result. It is the opposite: evidence
+that the clean number is inflated by a shortcut that will not survive a new
+generator. Adriel, that table is yours — flagging rather than editing.
+
+---
+
+## 9. Linear beats MLP, and why retraining cannot fix a frozen backbone
+
+"Keep the linear model" was a default in the docs, never measured on this branch.
+The flat learning curve in `HANDOVER.md` §5a only shows more *data* does not help
+a linear model; it says nothing about capacity. Tested:
+
+```
+model                     params    clean    worst
+LogisticRegression           770   0.9382   0.9151
+MLP (64,)                 49,345   0.9282   0.9023
+MLP (256,)               197,377   0.9230   0.9016
+MLP (256, 64)            213,633   0.9315   0.9134
+```
+
+Linear wins, and broadly more capacity is worse. The transfer gap says why:
+
+```
+model                  in-dist (seen)  OOD (unseen)  gap
+LogisticRegression             0.9994        0.9382   0.0613
+MLP (64,)                      0.9988        0.9282   0.0707
+MLP (256,)                     0.9988        0.9230   0.0758
+MLP (256, 64)                  0.9986        0.9315   0.0672
+```
+
+Every model is ~0.999 in-distribution — indistinguishable on training generators.
+They differ only in how far they fall on unseen ones. Extra capacity buys nothing
+but a better fit to the §8 shortcut. **Keep the linear model** is now a result,
+not an assumption.
+
+### Training on blurred crops does not remove the shortcut
+
+Size-matched at 2,477 rows per strategy, evaluated on clean input, generators
+split in two so the winner is not picked on the eval:
+
+```
+training data   split A (pick)  split B (confirm)
+clean only              0.9231             0.9594
+blur only               0.9271             0.9605
+mixed grid              0.9255             0.9580
+```
+
+Training on blur helps clean-input OOD by +0.0040 and +0.0011. Low-passing at
+inference instead, with the full probe on the same splits, is worth +0.0141 and
++0.0089 — three to eight times more.
+
+The reason is the frozen backbone. The shortcut is not something the probe
+learns; it is something **CLIP writes into the embedding**. A clean small face and
+a blurred one produce genuinely different vectors, and the difference tracks
+generator identity. A linear probe downstream cannot unsee a feature that moved
+its input before it arrived.
+
+**With a frozen encoder, shortcut removal has to happen on the input side, not the
+training side.** That follows from the never-unfreeze invariant rather than
+fighting it, and it generalises past the face branch.
+
+**Recommendation: do not act on it yet.** The honest size is +0.009 to +0.014, and
+capturing it means low-passing crops in `quorum/features.py` — Adriel's file — which
+invalidates every cached face embedding. A ~0.01 gain does not justify a
+re-embedding pass for five people.
+
+---
+
+## 10. Decisions I took
 
 - **Text branch: cut.** Nine hours of OCR for a seven-parameter model, against fusion
   being the critical path. The two slots stay in the vector at neutral fill, so
@@ -233,7 +350,7 @@ an abstention. Your file, your call on where the guard belongs.
 
 ---
 
-## 9. One thing worth saying out loud
+## 11. One thing worth saying out loud
 
 A single CLIP probe scores **0.91** on unseen generators and **0.37** on locally
 edited photos — worse than chance, because a tampered photo is globally authentic.
