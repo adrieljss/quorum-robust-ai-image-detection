@@ -22,7 +22,15 @@ from sklearn.linear_model import LogisticRegression
 
 MODELS = Path(__file__).resolve().parents[1] / "data" / "models"
 CALIBRATORS = MODELS / "calibrators.npz"
-CALIB_SOURCE = "sid_calib"
+# Adriel, per HANDOVER-MODELS 6: the calibration set is now a generator-disjoint
+# carve out of So-Fake-OOD, not sid_calib. Fitting Platt on sid_calib fitted it on
+# a branch that scores 0.9996 there, and the resulting slope manufactured
+# over-confidence on every unseen generator -- ECE out 0.1026 vs 0.0217 for
+# general, 0.1665 vs 0.0333 for face. The carve is by generator FAMILY (see
+# scripts/build_manifest.py) so Ideogram2/Ideogram3 cannot straddle the boundary.
+CALIB_SOURCE = "so_fake_ood"
+CALIB_SPLIT = "calib_ood"
+EVAL_SPLIT = "test_ood"
 
 
 def half(R, which: str, bit: int = 0) -> np.ndarray:

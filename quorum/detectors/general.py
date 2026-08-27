@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from functools import lru_cache
+
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -19,11 +21,58 @@ MODEL = MODELS / "general.npz"
 MODEL_TAMPERED = MODELS / "tampered.npz"
 
 
+MANIFEST = MODELS.parent / "manifests" / "main.csv"
+
+
+@lru_cache(maxsize=1)
+def _resolved():
+    """image_id -> the split build_manifest.py resolved it to.
+
+    The manifest applies a priority rule (eval beats train) when one image turns
+    up in two sources. The cache does not: it keeps whatever each shard wrote.
+    SID_Set ships 43 images in both its tampered train and validation splits, so
+    a loader that trusts the shard trains a probe on 80 rows of its own eval set.
+    Small -- it inflated the tampered probe 0.9440 -> 0.9464 -- but it is exactly
+    the contamination that does not look like a bug.
+    """
+    if not MANIFEST.exists():
+        print(f"WARNING: no {MANIFEST} -- cross-split dedupe is OFF; "
+              f"run scripts/build_manifest.py before trusting any number")
+        return {}
+    # by name, not position: usecols returns columns in FILE order, so a
+    # positional zip here silently builds the map backwards and filters nothing.
+    m = pd.read_csv(MANIFEST, usecols=["image_id", "source", "split"])
+    m = m.drop_duplicates("image_id")
+    return dict(zip(m.image_id, zip(m.source, m.split)))
+
+
 def load(source: str):
-    """(X, rows) with re-embedded duplicates dropped -- restarted runs re-draw
-    the same shuffle order, so the same image can land in two shards."""
+    """(X, rows) with re-embedded duplicates and cross-split leaks dropped.
+
+    Two distinct problems: a restarted run re-draws the same shuffle order, so
+    one image can land in two shards of the SAME source; and an image can appear
+    in two sources on opposite sides of the train/eval line. The manifest owns
+    the second, so defer to it rather than re-deriving the priority rule here.
+    """
     X, R = load_source(source)
     keep = ~R.duplicated(subset=["image_id", "variant"])
+
+    resolved = _resolved()
+    if resolved:
+        # face_/spec_ are branch caches of the same images; the manifest holds one
+        # row per image under the bare source name.
+        base = source.removeprefix("face_").removeprefix("spec_")
+        owner = R.image_id.map(resolved)
+        held = owner.map(lambda v: v[0] if isinstance(v, tuple) else None)
+        keep &= (held.isna() | (held == base)).values        # unseen id -> keep
+
+        # Adopt the manifest's split rather than the shard's. The shard records
+        # what the embedding pass was told; the manifest records what the split
+        # actually resolved to after dedupe and the calib_ood carve. When they
+        # disagree the manifest is right, and silently keeping the stale label is
+        # how a calibration slice ends up back in the eval set.
+        R = R.copy()
+        R["split"] = owner.map(lambda v: v[1] if isinstance(v, tuple) else None).fillna(R.split)
     return X[keep.values].astype(np.float32), R[keep].reset_index(drop=True)
 
 
@@ -61,6 +110,18 @@ def train_tampered():
 
 
 if __name__ == "__main__":
+    # The check that would have caught the 43-image SID_Set leak: no image may
+    # sit on both sides of the train/eval line once load() has filtered.
+    seen = {}
+    for s in ("sid_train", "sid_tampered", "sid_calib", "so_fake_ood",
+              "sid_tampered_eval", "organizer_val"):
+        seen[s] = set(load(s)[1].image_id)
+    for a in seen:
+        for b in seen:
+            if a < b:
+                assert not (seen[a] & seen[b]),                     f"{len(seen[a] & seen[b])} images shared by {a} and {b}"
+    print(f"splits disjoint: {sum(map(len, seen.values())):,} images across {len(seen)} sources")
+
     Xtr, Rtr = load("sid_train")
     print(f"general: train {Xtr.shape}  {Rtr.label.value_counts().to_dict()}")
     clf = fit(Xtr, Rtr.label.values)

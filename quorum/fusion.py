@@ -25,8 +25,8 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from quorum.calibrate import (CALIB_SOURCE, fit_platt, half, platt,
-                              plot_reliability)
+from quorum.calibrate import (CALIB_SOURCE, CALIB_SPLIT, EVAL_SPLIT, fit_platt,
+                              half, platt, plot_reliability)
 from quorum.detectors.face import design, px_stats
 from quorum.detectors.general import MODELS, fit, load
 
@@ -132,7 +132,7 @@ def raw_scores(source: str, M: dict) -> pd.DataFrame:
     and spectral left-join onto it and are allowed to be absent.
     """
     Xg, Rg = load(source)
-    df = Rg[["image_id", "variant", "label"]].copy()
+    df = Rg[["image_id", "variant", "label", "split"]].copy()
     df["general"] = M["general"].decision_function(Xg)
     df["tampered"] = M["tampered"].decision_function(Xg)
     df[[f"content_{c}" for c in CONTENT]] = content_onehot(Xg)
@@ -220,7 +220,10 @@ def auc_by_variant(p, df):
 if __name__ == "__main__":
     M = fit_branches()
 
-    cal = raw_scores(CALIB_SOURCE, M)
+    # One pass over the source, then split. calib_ood and test_ood are disjoint by
+    # generator family AND by image, enforced in scripts/build_manifest.py.
+    scored = raw_scores(CALIB_SOURCE, M)
+    cal = scored[scored.split == CALIB_SPLIT].reset_index(drop=True)
     a, b = half(cal, "a"), half(cal, "b")
     assert not (a & b).any() and (a | b).all(), "calib split is not a partition"
 
@@ -244,7 +247,7 @@ if __name__ == "__main__":
     print(f"fusion: calib_a {a.sum():,} + tampered {ta.sum():,} -> calibrators, "
           f"calib_b {b.sum():,} + tampered {tb.sum():,} -> fusion")
 
-    ood = raw_scores("so_fake_ood", M)
+    ood = scored[scored.split == EVAL_SPLIT].reset_index(drop=True)
     Xo = assemble(ood, cals)
     p = clf.predict_proba(Xo)[:, 1]
 

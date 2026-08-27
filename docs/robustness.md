@@ -8,29 +8,51 @@ AUROC per branch under each degradation setting. The clean-to-worst **drop** is 
 
 ```
           clean  worst worst_variant   drop
-general  0.9124 0.8798      noise002 0.0327
-face     0.8952 0.8620       noise01 0.0332
-spectral 0.7362 0.5596        blur10 0.1766
-tampered 0.9521 0.8950       noise01 0.0571
+general  0.9170 0.8848      noise002 0.0321
+face     0.9421 0.9168       noise01 0.0252
+spectral 0.6736 0.5471       noise01 0.1265
+tampered 0.9528 0.8962       noise01 0.0566
 ```
+
+> **Read the `face` row with care.** Its AUC *rises* under blur (0.9382 clean ->
+> 0.9500 at `blur20`). That is not robustness and not survivorship -- on the
+> identical 1,624 images present at both settings it still rises 0.8951 ->
+> 0.9264. Blur hurts on generators we trained on (-0.0047) and helps on unseen
+> ones (+0.0314), concentrated in small upsampled faces and anti-correlated with
+> clean AUC (r = -0.685, p = 0.007). The clean number is inflated by
+> pipeline-specific texture CLIP writes into the embedding. Working:
+> `docs/HANDOVER-MODELS.md` section 8.
 
 ## Full grid
 
 ```
            general   face  spectral  tampered
-clean       0.9124 0.8952    0.7362    0.9521
-blur05      0.9120 0.8913    0.7089    0.9521
-blur10      0.9098 0.9087    0.5596    0.9479
-blur20      0.9030 0.9256    0.5932    0.9335
-crop08      0.9066 0.8994    0.6222    0.9287
-jitter02    0.9103 0.8853    0.7276    0.9422
-jpeg30      0.9063 0.8940    0.6578    0.9630
-jpeg50      0.9111 0.9090    0.6966    0.9715
-jpeg70      0.9130 0.9033    0.7277    0.9681
-jpeg90      0.9085 0.8905    0.7560    0.9494
-noise002    0.8798 0.8839    0.6931    0.9244
-noise005    0.8905 0.8744    0.6452    0.9090
-noise01     0.8984 0.8620    0.5885    0.8950
-resize025   0.9073 0.9066    0.5752    0.9475
-resize05    0.9123 0.9174    0.6028    0.9499
+clean       0.9170 0.9421    0.6736    0.9528
+blur05      0.9166 0.9395    0.6525    0.9527
+blur10      0.9147 0.9448    0.5482    0.9486
+blur20      0.9080 0.9512    0.5974    0.9344
+crop08      0.9136 0.9405    0.5870    0.9299
+jitter02    0.9140 0.9369    0.6654    0.9429
+jpeg30      0.9091 0.9356    0.6487    0.9640
+jpeg50      0.9193 0.9463    0.6679    0.9724
+jpeg70      0.9190 0.9429    0.6933    0.9682
+jpeg90      0.9124 0.9374    0.7005    0.9502
+noise002    0.8848 0.9324    0.6328    0.9256
+noise005    0.8953 0.9254    0.5901    0.9106
+noise01     0.9035 0.9168    0.5471    0.8962
+resize025   0.9105 0.9441    0.5877    0.9488
+resize05    0.9168 0.9469    0.6037    0.9507
 ```
+
+## Combiners, on the full task
+
+`FULL` pools So-Fake-OOD (fully-synthetic) with sid_tampered_eval (locally edited) against the same real pool. The general probe is *inverted* on tampering, so a single-branch score that looks strong on one column collapses on the other.
+
+```
+               FULL avg  FULL worst  so_fake_ood clean  so_fake_ood worst
+general alone    0.6851      0.6542             0.9170             0.8848
+max(gen,tamp)    0.8597      0.8210             0.9114             0.8771
+fusion LR        0.8511      0.8150             0.9053             0.8796
+```
+
+The task is **disjunctive** -- "AI touched this" = fully-synthetic OR locally edited -- so `max` beats a linear combiner in log-odds space, which is forced into one additive trade-off across two complementary detectors. `predict.py` ships `max` on this measurement. Fitted on a *generator-disjoint* calibration slice, fusion does win (`docs/HANDOVER-MODELS.md` section 4); building that slice is the open data task.

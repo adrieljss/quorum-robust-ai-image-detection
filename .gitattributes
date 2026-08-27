@@ -1,0 +1,4 @@
+# Shard row CSVs are written on Windows but read everywhere. Without this a
+# fresh pull_cache.py rewrites every tracked CSV to CRLF -- 109 files, ~973k
+# insertions, zero content change -- and the next `git add -A` commits it.
+*.csv text eol=lf

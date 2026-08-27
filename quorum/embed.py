@@ -111,7 +111,11 @@ class ShardWriter:
             return
         tag = f"{self.source}_{self.shard:03d}"
         np.save(CACHE / f"{tag}.npy", np.stack(self.vecs))
-        pd.DataFrame(self.rows).to_csv(MANIFESTS / f"rows_{tag}.csv", index=False)
+        # LF explicitly: the default on Windows is CRLF, so a fresh pull_cache.py
+        # rewrites every tracked CSV and the next `git add -A` commits ~973k
+        # phantom insertions. Paired with *.csv eol=lf in .gitattributes.
+        pd.DataFrame(self.rows).to_csv(MANIFESTS / f"rows_{tag}.csv", index=False,
+                                       lineterminator="\n")
         print(f"  flushed {tag}: {len(self.vecs)} embeddings")
         self.vecs, self.rows = [], []
         self.shard += 1

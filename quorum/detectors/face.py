@@ -70,8 +70,16 @@ def save(clf, stats, path=MODEL):
 
 
 def report(clf, stats, face_source: str, base_source: str):
-    """The deliverable: AUC and coverage in one table, sorted by AUC."""
+    """The deliverable: AUC and coverage in one table, sorted by AUC.
+
+    calib_ood is excluded: Adriel's generator-disjoint carve (HANDOVER.md 5d)
+    moved 2,044 So-Fake images into the calibration split, and reporting the
+    headline face number on rows the calibrators are fitted to would not be a
+    held-out number. The probe itself never trains on them either way.
+    """
     X, R = load(face_source)
+    keep = (R.split != "calib_ood").values
+    X, R = X[keep], R[keep].reset_index(drop=True)
     a = auc_by_variant(clf, design(X, R, stats), R)
     t = pd.DataFrame({"auc": a}).join(coverage(face_source, base_source))
     return t.sort_values("auc")

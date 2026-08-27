@@ -149,9 +149,11 @@ ArcFace template, 224px crops, all cached. You train the probe only.
 
 Two measured facts that will shape your model:
 
-- **`face_px` matters.** Box sizes run 64–181px, so the same nominal degradation
-  lands ~2.8× harder on a small face upscaled to 224 than a large one downscaled
-  to it. The column is in every row. Condition on it.
+- **`face_px` matters — this shipped and it is the branch's one clear win.**
+  Box sizes run **64–612px** (an earlier 64–181 here was wrong), so the same
+  nominal degradation lands far harder on a small face upscaled to 224 than on a
+  large one downscaled to it. `face.py` conditions on standardised
+  `log2(face_px)`: 0.8952 → **0.9382** clean, 0.8620 → **0.9151** worst.
 - **More face data will not help.** Learning curve on `face_sid_train`, eval
   on `face_so_fake_ood`: 500 imgs -> 0.8892 clean / 0.8407 worst; all 4,128 ->
   0.8952 / 0.8620. Flat. A 769-parameter probe cannot absorb more. Spend the
@@ -198,6 +200,72 @@ wired to them.
 
 ---
 
+## 5d. `calib_ood` — the generator-disjoint calibration slice
+
+Built in response to `HANDOVER-MODELS.md` §6. **Use this, not `sid_calib`, for
+anything that produces a probability.**
+
+`sid_calib` shares generators with `train`, so every branch scores ~0.999 on it.
+Platt fitted against a branch that cannot be wrong learns an extreme slope, and
+that slope manufactures over-confidence the moment a new generator appears.
+Measured ECE on unseen generators:
+
+```
+branch    AUC on cal set   ECE (sid_calib)   ECE (calib_ood)   factor
+general           0.9996            0.1026            0.0217     4.7x
+face              0.9976            0.1665            0.0333     5.0x
+spectral          0.6789            0.0774            0.0519     1.5x   <- control
+```
+
+The two saturated branches improve ~5x. The one that never aced its calibration
+set barely moves — which is what confirms the mechanism rather than a coincidence.
+
+**The carve is by generator FAMILY, not by generator.** So-Fake-OOD ships 15
+generators but only 8 families: splitting `Ideogram2` from `Ideogram3`, or
+`imagen3` from `Imagen4`, would call a model "unseen" when its sibling was in the
+calibration set. `scripts/build_manifest.py` carves whole families —
+Flux + Ideogram + Recraft to calibration, GPT + Imagen + Seedream + nano_banana +
+Hidream held back for eval — and asserts the two sides share no generator and no
+image. 2,044 calibration images / 4,198 eval images.
+
+```python
+X, R = load("so_fake_ood")           # split is now calib_ood or test_ood
+cal  = R.split == "calib_ood"        # fit calibrators and fusion here
+ev   = R.split == "test_ood"         # report here, never fit
+```
+
+`load()` takes `split` from the manifest, not from the shard, so the carve is
+visible everywhere without re-embedding anything.
+
+**What it did and did not fix.** Fusion's deficit against the general probe went
+from −0.0112 clean to −0.0018 — the mechanism was real and the carve closed 85%
+of it. But fusion reaches *parity*, not a win. Kacey measured +0.0042 with a
+random generator split; under the stricter family-disjoint carve that gain does
+not survive. **`predict.py` stays on `max`** — see §5e.
+
+### 5e. Why `max` and not a learned combiner
+
+On the full task — So-Fake-OOD (fully synthetic) pooled with `sid_tampered_eval`
+(locally edited) against the same reals:
+
+```
+combiner          FULL avg   FULL worst   ood clean   ood worst
+general alone       0.7331       0.7036      0.9124      0.8798
+max(gen,tamp)       0.8728       0.8414      0.9028      0.8589
+fusion LR           0.8440       0.8175      0.8583      0.8337
+```
+
+The task is **disjunctive**: "AI touched this" = fully synthetic **OR** locally
+edited, and the general probe is *inverted* on tampering (0.37). A linear model in
+log-odds is forced into one additive trade-off across two complementary
+detectors; `max` lets whichever one fires win. Prevalence re-weighting and a
+noisy-OR hybrid were both tried and neither beats it.
+
+Reporting fusion on So-Fake-OOD alone understates it — that set contains no
+tampered images at all — which is why the pooled column exists.
+
+---
+
 ## 6. Gotchas that already cost us time
 
 - **Backbone is `ViT-L-14-quickgelu`, not `ViT-L-14`.** OpenAI weights need
@@ -216,6 +284,7 @@ wired to them.
 
 ## 7. Open items
 
+| ~~generator-disjoint calibration slice~~ — **done**, §5d | — | nothing |
 | item | owner | blocking |
 |---|---|---|
 | WildFake DALL·E Advanced (ModelScope, manual) | Michael or Valentino | organizer benchmark |

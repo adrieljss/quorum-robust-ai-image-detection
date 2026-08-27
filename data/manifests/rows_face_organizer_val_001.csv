@@ -177,9 +177,9 @@ label,source,subclass,generator,split,image_id,variant,face_present,face_px
 0,organizer_val,real,none,test_organizer,8e6f0f6dd9d4cfab,crop08,1,86.23357391357422
 0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,clean,1,133.6517333984375
 0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,jpeg90,1,135.4011688232422
-0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,jpeg70,1,135.4011688232422
-0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,jpeg50,1,135.4011688232422
-0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,jpeg30,1,135.4011688232422
+0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,jpeg70,1,133.84292602539062
+0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,jpeg50,1,134.48577880859375
+0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,jpeg30,1,133.29185485839844
 0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,blur05,1,134.38232421875
 0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,blur10,1,135.74501037597656
 0,organizer_val,real,none,test_organizer,fed5d7dfc14693e6,blur20,1,140.52938842773438
