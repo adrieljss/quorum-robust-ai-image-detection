@@ -76,28 +76,65 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
 - [ ] Per-variant AUC table (expect collapse under resize; that is correct)
 
 ### Kacey — face probe
-- [ ] `quorum/detectors/face.py`, conditioning on `face_px`
-- [ ] Per-variant AUC **and coverage** (detector loses 77% under `noise010`)
+- [x] `quorum/detectors/face.py`, conditioning on `face_px` — 0.9382 clean /
+      0.9151 worst, up from 0.8952 / 0.8620
+- [x] Per-variant AUC **and coverage**
+- [x] Explain why face AUC *rises* under blur (0.9382 → 0.9500 at `blur20`).
+      **Shortcut learning, not survivorship** — blur hurts in-distribution
+      (-0.0047) and helps OOD (+0.0314). The probe partly reads resampling
+      texture in upsampled crops; gain concentrates in small faces (+0.047 vs
+      +0.009) and is anti-correlated with clean AUC across 14 generators
+      (r = -0.685, p = 0.007). HANDOVER-MODELS.md §8
+- [x] Linear vs MLP on the face branch — **linear wins**, 256x fewer parameters
+      and a smaller transfer gap. Was a documented default, now a result. §9
 
 ### Kacey — text
-- [ ] Decide build or cut. **Recommendation: cut**, to protect fusion time.
+- [x] Decide build or cut. **Cut.** Nine hours of OCR for a 7-parameter model
+      against fusion being the critical path. Both slots stay in the fusion
+      vector at neutral fill, so wiring it back later is one line
 
 ---
 
 ## Stage 3 — Calibration and fusion — **Kacey**
 
-The critical path. Nothing downstream works without it, and there is no partial
-credit: a demo without fusion is a demo of one probe.
+Built, but **not shipping as the scorer**. Full reasoning and numbers in
+`docs/HANDOVER-MODELS.md`.
 
-- [ ] Platt scaling per branch, fit on `calib` **only**
-- [ ] Reliability diagrams to verify calibration
-- [ ] CLIP zero-shot content label (face / animal / object / scene / text-heavy)
-      — free, reuses the embedding
-- [ ] `degradation_estimate` feature — fusion must distinguish "no artifacts
-      found" from "could not measure"
-- [ ] `quorum/fusion.py` — logistic regression over the 5-branch input vector
-- [ ] Wire `predict.py` to fusion, replacing the `max()` placeholder
-- [ ] Verify output contract exactly: `[{"image_path": ..., "pred": 0.87}]`
+- [x] Platt scaling per branch, `quorum/calibrate.py`. Calibrators fit on
+      `calib_a`, fusion on `calib_b`, split by `image_id`
+- [x] Reliability diagrams — `docs/figures/reliability.png`
+- [x] CLIP zero-shot content label — `data/models/content_prompts.npz`
+- [x] `degradation_estimate` feature — P(degraded) from the 8 spectral features
+- [x] `quorum/fusion.py` — logistic regression over the 14-column input vector
+- [x] Verify output contract exactly: `[{"image_path": ..., "pred": 0.87}]` —
+      passes, including nested dirs, grayscale/RGBA, and all five extensions
+- [ ] Wire `predict.py` to fusion — **deferred, not cancelled.** Blocked on the
+      calibration slice below. Measured on so_fake_ood clean/worst: raw `max()`
+      0.9042 / 0.8634, fusion 0.8587 / 0.8340, so swapping it in *today* costs
+      ~6 points. `predict.py` keeps `max()` and its docstring records why
+
+### Blocked on Adriel — the one thing that unblocks fusion
+
+- [ ] **Carve a generator-disjoint calibration slice from So-Fake-OOD**, own
+      `source` and `--assign-split`. Touches assertions A and B, so it is
+      Adriel's call — move this into Stage 1 if that fits better
+
+Fusion beats general only when calibrated on generator-diverse data: +0.0042
+clean and +0.0055 worst, positive on all 5 random generator partitions. Fitted on
+`sid_calib` it *loses*, because that split shares generators with train and every
+branch is saturated there, so Platt fits an extreme slope that manufactures
+over-confidence. Measured collapse, sorted by saturation:
+
+```
+branch     AUC on cal set   ECE in  ECE out  factor
+general            0.9995   0.0022   0.1085   49.5x
+face               0.9985   0.0143   0.1697   11.9x
+tampered           0.9636   0.0062   0.0112    1.8x
+spectral           0.6807   0.0520   0.0741    1.4x
+```
+
+The fusion retrain afterwards is seconds of compute. The split is the blocker,
+not the training.
 
 ---
 

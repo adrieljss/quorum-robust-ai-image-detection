@@ -2,11 +2,16 @@
 
     python predict.py --input-dir path/to/images --output preds.json
 
-`pred` is P(AI-generated), calibrated, in [0,1]. Two fields, no more -- the
-demo's richer schema stays in the demo.
+`pred` is P(AI-generated) in [0,1], raw and uncalibrated. Two fields, no more --
+the demo's richer schema stays in the demo.
 
-ponytail: two probes, max-combined, uncalibrated. Swap score_all() for the
-fusion call when it lands; nothing else here changes.
+ponytail: fusion.py exists and this still does not call it, deliberately.
+Measured on so_fake_ood, clean / worst: raw max 0.9042 / 0.8634, fusion
+0.8587 / 0.8340. Calibrating first makes it worse again (ECE 0.048 -> 0.103),
+because sid_calib shares generators with train and every branch is saturated
+there, so Platt fits an extreme slope that manufactures over-confidence on new
+generators. Revisit once a generator-disjoint calibration source exists --
+docs/HANDOVER-MODELS.md has the numbers and the fix.
 """
 import argparse
 import json
@@ -30,11 +35,11 @@ def _probe(path):
 def score_all(paths) -> np.ndarray:
     """max(P_synthetic, P_tampered) -- either one firing means AI touched it.
 
-    ponytail: max, not a learned combiner. The two probes are separately
-    uncalibrated so this over-trusts whichever is more confident; fusion.py
-    with per-branch calibration is the real answer. Still far better than the
-    general probe alone, which scores tampered images BELOW real ones
-    (AUC 0.37) because a locally-edited photo is globally authentic.
+    ponytail: max, not a learned combiner, and measurement says keep it that
+    way for now -- a fusion LR over the calibrated branch vector scored lower on
+    both so_fake_ood and tampered. Far better than the general probe alone,
+    which scores tampered images BELOW real ones (AUC 0.37) because a
+    locally-edited photo is globally authentic.
     """
     probes = [_probe(MODEL)] + ([_probe(MODEL_TAMPERED)] if MODEL_TAMPERED.exists() else [])
     emb, out = Embedder(), []
@@ -47,7 +52,12 @@ def score_all(paths) -> np.ndarray:
 
 
 def main(a):
-    paths = sorted(p for p in Path(a.input_dir).rglob("*") if p.suffix.lower() in EXTS)
+    # a typo'd path and a genuinely empty one are different problems; without
+    # this they produce the same "no images under" line and look like the same one
+    root = Path(a.input_dir)
+    if not root.is_dir():
+        raise SystemExit(f"not a directory: {a.input_dir}")
+    paths = sorted(p for p in root.rglob("*") if p.suffix.lower() in EXTS)
     if not paths:
         raise SystemExit(f"no images under {a.input_dir}")
     preds = [{"image_path": p.as_posix(), "pred": round(float(v), 4)}
