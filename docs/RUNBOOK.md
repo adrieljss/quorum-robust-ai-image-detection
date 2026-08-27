@@ -689,8 +689,15 @@ val = df[df.source == "organizer_val"]
 assert len(val) > 0, "organizer val missing — cannot report reference number"
 assert (val.split == "test_organizer").all(), "ORGANIZER VAL LEAKED INTO TRAINING"
 
-# B. OOD set eval-only
-assert (df[df.source == "so_fake_ood"].split == "test_ood").all(), "OOD LEAKED"
+# B. OOD set is eval-only apart from the deliberate calib_ood carve, and the two
+#    sides must share no generator family and no image. See HANDOVER.md 5d.
+ood = df.source == "so_fake_ood"
+assert df[ood].split.isin(["test_ood", "calib_ood"]).all(), "OOD LEAKED"
+ai = df[ood & (df.label == 1)]
+gen_cal = set(ai[ai.split == "calib_ood"].generator)
+gen_ev = set(ai[ai.split == "test_ood"].generator)
+assert gen_cal and gen_ev, "carve produced an empty side"
+assert not (gen_cal & gen_ev), f"generator on both sides: {gen_cal & gen_ev}"
 
 # C. calibration split trains nothing
 assert (df[df.source == "sid_calib"].split == "calib").all()
@@ -781,12 +788,20 @@ X, rows = load_source("sid_train")    # X (N,768) aligns 1:1 with rows
 
 ### Rules
 
-- `train` trains. `calib` fits calibrators only. `test_*` is never trained on.
+- `train` trains. `calib` and `calib_ood` fit calibrators and fusion only.
+  `test_ood` and `test_organizer` are never fitted on.
+- **`calib_ood` is carved out of So-Fake-OOD by generator family**, so selecting
+  rows by `source == "so_fake_ood"` without filtering `split` puts your eval set
+  in your training set. Filter by split, always. `load()` takes `split` from the
+  manifest, never from the shard.
 - Every `train_*.py` takes a required `--manifest` argument. No default.
 - Do not re-run the embedding pass. If you think you need to, ask — it changes
   everyone's numbers.
 - `data/raw/organizer_val/` is the competition validation set. Never train on it.
 - Train rows have 4 variants per image (clean + 3 sampled); eval rows have all 15.
+- **Never junction `data/` into a git worktree.** `git worktree remove --force`
+  follows Windows directory junctions and deletes the target — it wiped the
+  embedding cache once already.
 ````
 
 | Owner | Task | Reads |

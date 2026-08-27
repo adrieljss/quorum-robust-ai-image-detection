@@ -305,7 +305,7 @@ python scripts/build_manifest.py \
 | `source` | `sid_set`, `so_fake_ood`, `organizer_val`, `openimages`, ... |
 | `generator` | from So-Fake-OOD's field; `unknown` for SID_Set; `real` for reals |
 | `subclass` | `real` / `full_synthetic` / `tampered` |
-| `split` | `train` / `calib` / `test_ood` / `test_organizer` / `test_wild` |
+| `split` | `train` / `calib` / **`calib_ood`** / `test_ood` / `test_organizer` / `test_wild` |
 | `orig_format` | `jpg` / `png` / `webp` |
 
 Use a **content hash** for `image_id`, not the filename. Filenames collide across
@@ -339,7 +339,9 @@ assert len(val) > 0, "organizer val missing — cannot report reference number"
 
 ```python
 ood = df[df.source == "so_fake_ood"]
-assert (ood.split == "test_ood").all(), "OOD set leaked into training"
+assert ood.split.isin(["test_ood", "calib_ood"]).all(), "OOD set leaked into training"
+# calib_ood is the generator-family-disjoint calibration carve (HANDOVER.md 5d).
+# build_manifest.py additionally asserts the two sides share no generator and no image.
 ```
 
 **C. Format does not predict label**

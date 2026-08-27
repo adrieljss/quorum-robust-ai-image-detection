@@ -1,22 +1,32 @@
 # Quorum — Data Handover
 
-**Status:** embedding pipeline complete for the general branch; face and spectral
-complete except `organizer_val`. Text branch not built.
+**Status:** all three cached branches complete on every source, `organizer_val`
+included. Face probe, calibration, and fusion all built (Kacey). Text branch cut.
+`predict.py` ships `max(general, tampered)` on measurement — see §5e.
 **Data owner:** Adriel — ask about anything in the cache or the manifest.
-**Manifest:** `data/manifests/main.csv` — assertions A–F pass.
+**Manifest:** `data/manifests/main.csv` — 330,851 rows, assertions A–F pass.
+**Reply doc:** `docs/HANDOVER-MODELS.md` is Kacey's handover back; §8 there is the
+single sharpest result anyone has produced and is worth reading before you model.
 
 ---
 
 ## 0. Read this first
 
-Three rules. Breaking any of them invalidates every number the team produces.
+Four rules. Breaking any of them invalidates every number the team produces.
 
 1. **Never train on `test_organizer`.** COCO val2017 + WildFake DALL·E Advanced
    are the organizer's validation set. Assertion A enforces the split; nothing
    enforces a wrong label, so check it by hand.
 2. **Never train on `test_ood`.** So-Fake-OOD is the headline eval. It is the
    only number that measures generalisation to unseen generators.
-3. **Every `train_*.py` takes a required `--manifest` with no default.** One
+3. **`calib_ood` is the one deliberate exception, and it is not a licence to
+   touch `test_ood`.** Part of So-Fake-OOD is now carved off as a calibration
+   slice (§5d). Calibrators and fusion fit on `calib_ood`; nothing ever fits on
+   `test_ood`. The two are disjoint by generator family *and* by image, and
+   `scripts/build_manifest.py` asserts both. If you select rows by
+   `source == "so_fake_ood"` without also filtering `split`, you are training on
+   your own eval set — filter by split, always.
+4. **Every `train_*.py` takes a required `--manifest` with no default.** One
    shared manifest, or the fusion join silently miscalibrates.
 
 Contamination does not look like a bug. It looks like an unusually good number.
@@ -38,7 +48,19 @@ from quorum.detectors.general import load
 X, R = load("sid_train")    # X[i] is the 768-d vector for row R.iloc[i]
 ```
 
-`load()` drops re-embedded duplicates. Use it, not `np.load` directly.
+`load()` does three things `np.load` does not, and all three are load-bearing:
+
+1. drops re-embedded duplicates within a source (a restarted run re-draws the
+   same shuffle order, so one image can land in two shards);
+2. drops **cross-split leaks** — an image the manifest assigned to a different
+   source, e.g. the 43 images SID_Set ships in both its tampered train and
+   validation splits;
+3. **takes `split` from the manifest, not from the shard.** The shard records
+   what the embedding pass was told; the manifest records what the split
+   resolved to after dedupe and the `calib_ood` carve. Never read `R.split`
+   expecting the shard's value.
+
+Use `load()`, never `np.load` directly.
 
 ---
 
@@ -47,9 +69,9 @@ X, R = load("sid_train")    # X[i] is the 768-d vector for row R.iloc[i]
 | source | split | images | general | spectral | face |
 |---|---|---|---|---|---|
 | `sid_train` | train | 16,000 | yes | 15,753 | 4,059 |
-| `sid_tampered` | train | 3,992 | yes | 3,992 | 472 |
+| `sid_tampered` | train | 3,949 | yes | 3,992 | 472 |
 | `sid_calib` | calib | 3,996 | yes | 3,996 | 964 |
-| `so_fake_ood` | test_ood | 6,242 | yes | 5,987 | 1,910 |
+| `so_fake_ood` | **test_ood + calib_ood** | 6,242 | yes | 5,987 | 1,910 |
 | `sid_tampered_eval` | test_ood | 1,499 | yes | 1,499 | 244 |
 | `organizer_val` | test_organizer | 5,000 | yes | 5,000 | 386 |
 
@@ -72,11 +94,16 @@ clean + 3 sampled; eval images carry the full grid. Names are the join key:
 | branch | input | output | model |
 |---|---|---|---|
 | general | `float32[768]` L2-normed CLIP | raw score | LogisticRegression |
-| face | `float32[768]` of an aligned 224px crop | score + `face_present` | LogisticRegression |
+| face | `float32[769]` — aligned 224px crop + standardised `log2(face_px)` | score + `face_present` | LogisticRegression |
 | spectral | `float32[8]` | score | LogisticRegression |
 | text | `float32[6]` | score + `text_present` | LogisticRegression |
 
-Scores are **uncalibrated**. Calibration happens once, in fusion.
+Branch scores are **uncalibrated**. Calibration happens once, in fusion: the
+Platt `(a, b)` pairs live in `data/models/fusion.npz` as `cal_general`,
+`cal_face`, `cal_spectral`, `cal_tampered`, fitted on `calib_ood` (§5d).
+The face branch is **769**-d, not 768 — the extra column is Kacey's `face_px`
+conditioning and it is worth +0.043 clean. `quorum.detectors.face.design()`
+builds it; do not hand-roll the concatenation.
 
 **Missing-branch rule:** presence flag + neutral `0.5` fill. "No face here" must
 never read as "the face model says real."
@@ -90,8 +117,12 @@ never read as "the face model says real."
 Baseline is trained and committed: `data/models/general.npz`.
 
 ```
-So-Fake-OOD   clean 0.9124   worst 0.8798 (noise002)   drop 0.0327
+So-Fake-OOD (test_ood, held out)   clean 0.9170   worst 0.8848 (noise002)   drop 0.0321
 ```
+
+Numbers moved slightly from the first handover: the eval is now the held-out
+`test_ood` only, with `calib_ood` excluded, and `load()` drops the 43-image
+SID_Set leak. Regenerate any table with `python scripts/eval_grid.py`.
 
 Your job is to beat it. What is already known:
 
@@ -103,9 +134,16 @@ Your job is to beat it. What is already known:
 - **Do not fold tampered into this probe.** Measured: it drops OOD to 0.7920
   while only reaching 0.7831 on tampered, where a dedicated probe reaches 0.9521.
   One linear boundary cannot serve both tasks. `tampered.npz` stays separate.
-- Try `Linear(768→256)→ReLU→Dropout(0.2)→Linear(256→1)`. If it does not clearly
-  beat LogisticRegression on So-Fake-OOD, keep the linear model.
-- Multi-crop embedding (PIPELINE §4.5) is the cheapest untried upgrade.
+- **Do not bother with an MLP head — that question is now answered.** Kacey ran
+  it on the face branch (`HANDOVER-MODELS.md` §9): linear 0.9382, MLP(64,)
+  0.9282, MLP(256,) 0.9230, MLP(256,64) 0.9315. Every model is ~0.999
+  in-distribution and they differ *only* in how far they fall on unseen
+  generators. Extra capacity buys a better fit to the shortcut, nothing else.
+  Retest on general if you like, but expect the same shape.
+- Multi-crop embedding (PIPELINE §4.5) is the cheapest untried upgrade, and with
+  the MLP question closed it is now the *only* untried one on this branch.
+- A different frozen backbone is the real headroom. ViT-L/14 is ~304M against a
+  2B cap — you are using 15% of the budget.
 
 ### 4b. Regularity / spectral scorer
 
@@ -118,12 +156,25 @@ X, R = load("spec_sid_train")      # (N, 8)
 clf = fit(X, R.label.values)
 ```
 
-Measured on `sid_calib`:
+**Measured on held-out `test_ood`, which is the number that counts:**
 
 ```
-clean 0.8347   jpeg90 0.8313   blur05 0.7953   jpeg30 0.7576
-blur20 0.5713  resize05 0.5177  resize025 0.5124   <- chance
+clean 0.6736   worst 0.5471 (noise01)   drop 0.1265
 ```
+
+The older `sid_calib` figures (clean 0.8347) were same-generator and flattered
+it by ~0.16. Use So-Fake-OOD for every decision.
+
+```
+clean 0.8347   jpeg90 0.8313   blur05 0.7953   jpeg30 0.7576   <- sid_calib, optimistic
+blur20 0.5713  resize05 0.5177  resize025 0.5124               <- chance
+```
+
+**Known data defect, your call where the guard goes:** `spec_so_fake_ood` holds
+25 all-zero feature vectors (3 distinct images, ~8 variants each, all label 0).
+A zero vector is not a missing branch — it flows through as a real score instead
+of tripping the presence-flag path, so those images get neither a signal nor an
+abstention. The other four spectral sources are clean.
 
 **It collapses to coin-flip under downscaling.** Expected and documented
 (PIPELINE §7.1) — JPEG and resize destroy the high frequencies the branch reads.
@@ -266,6 +317,93 @@ tampered images at all — which is why the pooled column exists.
 
 ---
 
+## 5f. Model polish since Kacey's handover — Adriel
+
+Nothing here changed an architecture. Kacey's calls all survived review; what
+follows is integrity, calibration, and honest measurement. Every number in the
+repo moved slightly as a result, so regenerate rather than quoting old tables.
+
+### 1. Closed a cross-split leak that touched every branch
+
+SID_Set ships **43 images in both its tampered train and validation splits**.
+`build_manifest.py` resolved it (eval wins) — but `load()` read the cache
+directly and never consulted the manifest, so every branch script silently
+bypassed the dedupe: Kacey's fusion, `eval_grid.py`, and `train_tampered()`
+alike. 80 rows of eval data were in the tampered probe's training set.
+
+Fixed in `load()` rather than in six callers, so all of them inherit it. Effect
+was small but in the dishonest direction — tampered **0.9464 → 0.9440**. Guarded
+by an assert in `general.py`'s `__main__` that fails if any two sources ever
+share an `image_id` again.
+
+### 2. Built `calib_ood` and it fixed calibration ~5x
+
+Full detail in §5d. The short version: calibrating on `sid_calib` was fitting
+Platt against branches that score 0.999 there, and the resulting slope
+manufactured over-confidence on every unseen generator.
+
+```
+branch    AUC on cal set   ECE (sid_calib)   ECE (calib_ood)   factor
+general           0.9996            0.1026            0.0217     4.7x
+face              0.9976            0.1665            0.0333     5.0x
+spectral          0.6789            0.0774            0.0519     1.5x  <- control
+```
+
+The control row is what makes this a mechanism rather than a coincidence: the
+branch that never aced its calibration set barely moves. **This matters most for
+the demo** — every confidence number a judge sees is now ~5x better calibrated.
+
+Carved by generator **family**, not generator, which is stricter than the
+in-memory experiment it replaces. Under that stricter test fusion reaches parity
+with the general probe rather than beating it, so `predict.py` keeps `max()`.
+
+### 3. Established *why* `max` beats a learned combiner
+
+Kacey measured that fusion loses. The ablation localises it and the pooled
+evaluation explains it. Adding `cal_tampered` to the fusion input is the entire
+regression (0.9124 → 0.8658 on its own); the rest of the vector is noise. And
+So-Fake-OOD understates every combiner that handles tampering, because it holds
+no tampered images at all. Pooling both eval sets against the same reals:
+
+```
+combiner          FULL avg   FULL worst
+general alone       0.6851       0.6542
+max(gen,tamp)       0.8597       0.8210
+fusion LR           0.8511       0.8150
+```
+
+The task is **disjunctive** — "AI touched this" = fully synthetic OR locally
+edited — and the general probe is *inverted* on tampering (0.37). A linear model
+in log-odds is forced into one additive trade-off across two complementary
+detectors; `max` lets whichever fires win. Prevalence re-weighting and a noisy-OR
+hybrid were both tried; neither beats it. `predict.py`'s `max()` now rests on two
+independent measurements instead of one.
+
+### 4. Made every reported number held-out
+
+`eval_grid.py` and `face.py` both excluded nothing before the carve existed and
+would have scored the calibration slice as if it were held out. Both now filter
+`calib_ood`, and they agree exactly (face 0.9421 / 0.9168).
+
+### 5. Tooling
+
+- **`scripts/eval_grid.py`** — regenerates `docs/robustness.md`, the required
+  Robustness Evaluation Summary. Refits from cache every run so it cannot drift
+  from a stale `.npz`. Gains a `fused` column in one line if fusion ever ships.
+- **`scripts/try_face.py`** — score individual images through the face and
+  general probes; `--save-crops` writes the aligned 224px crop so alignment can
+  be eyeballed. Alignment broke silently once in this project and a mirrored
+  face still scores confidently, so this is the check for it.
+
+### 6. Doc corrections
+
+The face coverage figures in §5a were wrong (`noise01` loses 15–18%, not 77%),
+the `face_px` range was wrong (64–612, not 64–181), and `robustness.md` was
+selling the blur AUC rise as robustness when `HANDOVER-MODELS.md` §8 shows it is
+a shortcut. All three are corrected in place. Kacey caught the first two.
+
+---
+
 ## 6. Gotchas that already cost us time
 
 - **Backbone is `ViT-L-14-quickgelu`, not `ViT-L-14`.** OpenAI weights need
@@ -278,22 +416,45 @@ tampered images at all — which is why the pooled column exists.
   caught them; the manifest resolved them to eval. Trust `image_id`, not the
   dataset's split labels.
 - **Never unfreeze the backbone.** LoRA fine-tuning a comparable encoder dropped
-  in-the-wild accuracy 95.9% to 63.5%.
+  in-the-wild accuracy 95.9% to 63.5%. Corollary from `HANDOVER-MODELS.md` §9:
+  with a frozen encoder, a shortcut lives in the *embedding*, so it has to be
+  removed on the input side. No amount of retraining the probe can unsee it.
+- **Never junction `data/` into a git worktree.** `git worktree remove --force`
+  does not treat a Windows directory junction as a link — it follows it and
+  deletes the target. This wiped `data/cache/embeddings/` mid-session; 107 of
+  130 shards came back from the HF push and the rest had to be re-embedded.
+  Copy the files, or run branch code in the main tree.
+- **`pd.read_csv(usecols=[...])` returns columns in FILE order, not the order you
+  asked for.** `dict(zip(*df.to_dict("list").values()))` therefore builds the map
+  backwards and the filter silently passes everything. It cost an hour here.
+  Zip by explicit column name.
+- **CSV line endings.** `ShardWriter` now writes LF and `.gitattributes` pins
+  `*.csv eol=lf`. Before that, a fresh `pull_cache.py` rewrote every tracked
+  manifest CSV to CRLF — 109 files, ~973k insertions, zero content change — and
+  the next `git add -A` committed it.
 
 ---
 
 ## 7. Open items
 
-| ~~generator-disjoint calibration slice~~ — **done**, §5d | — | nothing |
 | item | owner | blocking |
 |---|---|---|
-| WildFake DALL·E Advanced (ModelScope, manual) | Michael or Valentino | organizer benchmark |
-| ~~`organizer_val` face + spectral~~ — **done** | — | nothing |
-| ~~`faces/` dataset~~ — **cut**, face probe saturates at ~500 imgs | — | nothing |
+| **WildFake DALL·E Advanced** (ModelScope, manual) | Michael or Valentino | the organizer benchmark — see below |
+| **Push the cache again** — remote predates the carve | Adriel | anyone who pulls calibrates on `sid_calib` |
+| `quorum/detectors/spectral.py` — features exist, model is 9 params | Albert | fusion's weakest input |
+| 25 all-zero vectors in `spec_so_fake_ood` (§4b) | Albert | nothing, but it is silent |
 | `real_extra/openimages` — real-class diversity | optional | — |
 | `social_real/` — 200–500 screenshots, manual | Michael / Valentino | deployment realism |
-| text branch: build or cut | Kacey | — |
 | `provenance.py` (C2PA) | unassigned — cut candidate | nothing |
+| ~~generator-disjoint calibration slice~~ — **done**, §5d | — | — |
+| ~~`organizer_val` face + spectral~~ — **done** | — | — |
+| ~~`faces/` dataset~~ — **cut**, probe saturates at ~500 imgs | — | — |
+| ~~text branch~~ — **cut** by Kacey, slots kept at neutral fill | — | — |
+
+**`organizer_val` cannot be scored at all until WildFake lands.** COCO val2017 is
+100% real, so `test_organizer` has 5,000 negatives and zero positives — there is
+no positive class and therefore no AUROC, not even a bad one. It is the only
+externally-comparable number the submission gets.
 
 ### WildFake commands, for whoever takes it
 
