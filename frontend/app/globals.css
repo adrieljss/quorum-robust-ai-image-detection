@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: var(--font-fraunces), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-source), "Segoe UI", system-ui, sans-serif;
+  --color-paper: #f7f1e8;
+  --color-cream: #efe4d4;
+  --color-sand: #d8c4ab;
+  --color-line: #e4d5c2;
+  --color-card: #fffaf3;
+  --color-clay: #c45a22;
+  --color-clay-dark: #9d4318;
+  --color-umber: #2c1c13;
+  --color-bark: #5b3a28;
+  --color-taupe: #8a7363;
+  --color-moss: #4f6b4a;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-umber);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  z-index: 50;
+}
+
+::selection {
+  background: #e8c4a8;
+  color: var(--color-umber);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-rise {
+  animation: rise-in 420ms ease-out both;
+}
+
+.animate-fade {
+  animation: fade-in 360ms ease-out both;
+}
