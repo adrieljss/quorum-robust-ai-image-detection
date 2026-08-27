@@ -34,11 +34,21 @@ already holds. If *per model*, there is headroom for a second backbone.
 - [x] So-Fake-OOD embeddings (headline eval)
 - [x] COCO val2017 → `organizer_val`, quarantined
 - [x] `main.csv` + `stats.md`, assertions A–F green
-- [ ] `sid_tampered_eval` face + spectral pass
+- [x] `sid_tampered_eval` face + spectral (1,499 spec / 244 face)
+
+### Handover — do these first, Albert and Kacey are waiting
+- [ ] **Create a HuggingFace organization** — personal repos cannot be shared
+      privately, so this blocks the push entirely. Free, ~2 min.
+- [ ] Invite Albert, Kacey, Michael, Valentino with **write** access
+- [ ] `push_cache.py` to `<org>/quorum-cache` (~1.3GB)
+- [ ] Delete the stale personal `adrieljss/quorum-cache`
+- [ ] Update `docs/HANDOVER.md` §1 with the real org path
+
+### Second push — nobody is blocked on these
 - [ ] `organizer_val` face + spectral pass (~55 min)
 - [ ] `faces/` dataset — `hf download pujanpaudel/deepfake_face_classification`
 - [ ] Re-run `build_manifest.py`; assertions must stay green
-- [ ] `push_cache.py` — **only after the above**, so the team pulls once
+- [ ] `push_cache.py` again — `pull_cache.py` picks up the delta
 
 ### Handed to Michael or Valentino
 - [ ] **WildFake DALL·E Advanced** — ModelScope, manual. Commands in
