@@ -18,11 +18,15 @@ from quorum.embed import MANIFESTS
 # copy always beats a train copy, so a duplicate can never leak into training.
 PRIORITY = ["test_organizer", "test_ood", "test_wild", "calib", "train"]
 
-files = sorted(glob.glob(str(MANIFESTS / "rows_*.csv")))
+# General embeddings only. face_*/spec_* are BRANCH caches keyed on the same
+# (image_id, variant) and get left-joined at fusion time -- folding them in here
+# would let an image with spectral rows but no embedding into the manifest.
+files = [f for f in sorted(glob.glob(str(MANIFESTS / "rows_*.csv")))
+         if not Path(f).stem.startswith(("rows_face_", "rows_spec_"))]
 if not files:
     raise SystemExit(f"no rows_*.csv in {MANIFESTS} -- run the embedding pass first")
 df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
-df = df[~df.source.str.startswith("smoke")]
+df = df[~df.source.str.contains("smoke")]
 
 # ---- dedupe: one split per image, eval wins ----
 n_dupe = int((df.groupby("image_id").split.nunique() > 1).sum())

@@ -17,6 +17,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from quorum.embed import Embedder, ShardWriter, embed_variants
+from quorum.features import extract_variants
 
 EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
@@ -28,19 +29,26 @@ def main(a):
     if not paths:
         raise SystemExit(f"no images under {a.dir}")
 
-    emb, writer = Embedder(), ShardWriter(a.source)
+    emb = Embedder()
+    writers = ([ShardWriter("face_" + a.source, every=1_000),
+                ShardWriter("spec_" + a.source)]
+               if a.features else [ShardWriter(a.source)])
     for p in tqdm(paths, desc=a.source):
         try:
             img = Image.open(p)
         except Exception as e:
             print(f"  skip {p}: {e}")
             continue
-        embed_variants(emb, writer, img, {
-            "label": a.label, "source": a.source,
-            "subclass": "real" if a.label == 0 else "full_synthetic",
-            "generator": a.generator, "split": a.assign_split,
-        }, a.full_grid, a.n_sampled)
-    writer.flush()
+        meta = {"label": a.label, "source": a.source,
+                "subclass": "real" if a.label == 0 else "full_synthetic",
+                "generator": a.generator, "split": a.assign_split}
+        if a.features:
+            extract_variants(emb, writers[0], writers[1], img, meta,
+                             a.full_grid, a.n_sampled)
+        else:
+            embed_variants(emb, writers[0], img, meta, a.full_grid, a.n_sampled)
+    for w in writers:
+        w.flush()
     print(f"done: {len(paths)} images")
 
 
@@ -52,6 +60,8 @@ if __name__ == "__main__":
     p.add_argument("--label", type=int, required=True, choices=[0, 1])
     p.add_argument("--generator", default="unknown")
     p.add_argument("--limit", type=int)
+    p.add_argument("--features", action="store_true",
+                   help="face-crop embeddings + spectral vectors instead of general")
     p.add_argument("--full-grid", action="store_true")
     p.add_argument("--n-sampled", type=int, default=3)
     main(p.parse_args())

@@ -23,11 +23,17 @@ BACKBONE = "ViT-L-14-quickgelu"
 PRETRAINED = "openai"
 CACHE_VERSION = "vitl14_v1"      # bump if preprocessing changes
 DIM = 768
-MAX_BATCH = 32                   # ponytail: 8GB VRAM ceiling; raise on a bigger GPU
+# Measured: 2.8GB VRAM per process at batch 15 on an 8GB card, so two concurrent
+# runs fit and three do not. Lower this to ~8 to squeeze in a third.
+MAX_BATCH = int(os.environ.get("QUORUM_MAX_BATCH", 32))
 # The pass is CPU-bound, not GPU-bound: measured 84% of per-image time in PIL
 # (degrade + JPEG + resize), 17% in the ViT forward. PIL releases the GIL, so
 # threads are enough -- no multiprocessing, no shared-memory dance.
 WORKERS = int(os.environ.get("QUORUM_WORKERS", min(8, os.cpu_count() or 4)))
+# Rows buffered before hitting disk. This is the blast radius of a crash or a
+# kill: at 20k a 4-variant pass buffered 5000 images (~15 min) and a kill threw
+# away the entire run. 4k is ~1000 images, a few minutes.
+FLUSH_EVERY = int(os.environ.get("QUORUM_FLUSH", 4_000))
 POOL = ThreadPoolExecutor(max_workers=WORKERS)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,7 +90,7 @@ class ShardWriter:
     csv describes row i of the array. load_source() reassembles them.
     """
 
-    def __init__(self, source: str, every: int = 20_000):
+    def __init__(self, source: str, every: int = FLUSH_EVERY):
         self.source, self.every = source, every
         self.vecs, self.rows = [], []
         CACHE.mkdir(parents=True, exist_ok=True)
@@ -92,7 +98,7 @@ class ShardWriter:
         # Continue numbering past whatever this source already wrote, so a rerun
         # appends instead of overwriting _000. build_manifest dedupes on
         # (image_id, variant), so an overlapping rerun is harmless.
-        self.shard = len(glob.glob(str(CACHE / f"{source}_*.npy")))
+        self.shard = len(glob.glob(str(CACHE / f"{source}_[0-9][0-9][0-9].npy")))
 
     def add(self, vec, row):
         self.vecs.append(vec)
@@ -114,7 +120,9 @@ class ShardWriter:
 def load_source(source: str):
     """(X, rows) for one source, shards concatenated. X[i] <-> rows.iloc[i]."""
     Xs, Rs = [], []
-    for s in sorted(glob.glob(str(CACHE / f"{source}_*.npy"))):
+    # [0-9][0-9][0-9], not *: "sid_tampered_*" also matches "sid_tampered_eval_*"
+    # and silently trains a model on its own eval set.
+    for s in sorted(glob.glob(str(CACHE / f"{source}_[0-9][0-9][0-9].npy"))):
         tag = Path(s).stem                               # NOT split("/") -- Windows
         Xs.append(np.load(s))
         Rs.append(pd.read_csv(MANIFESTS / f"rows_{tag}.csv"))
@@ -125,16 +133,27 @@ def load_source(source: str):
     return X, R
 
 
-def embed_variants(emb, writer, img, row, full_grid: bool, k: int = 3) -> str:
+def embed_variants(emb, writer, img, row, full_grid: bool, k: int = 3,
+                   save_dir=None) -> str:
     """Normalise -> id -> embed every variant -> shard. Returns the image_id.
 
     One pass: this image is in memory once and never again, so all variants it
     will ever need are generated now.
+
+    save_dir caches the NORMALISED clean image so the face/text/spectral
+    branches never have to re-stream. Variants are not saved -- degrade.py is
+    seeded off image_id, so any branch regenerates all 15 offline, bit-exact.
     """
     from quorum.degrade import apply, variant_specs
 
     img = normalise(img)
     iid = image_id(img)
+    if save_dir is not None:
+        f = Path(save_dir) / f"{iid}.jpg"
+        if not f.exists():
+            img.save(f, "JPEG", quality=95)      # q95 again = same bytes, same id
+    if emb is None:
+        return iid                               # pixel-only pass
     specs = variant_specs(iid, None if full_grid else k)
     degraded = POOL.map(lambda sp: apply(img, sp[1], sp[2], sp[3]), specs)
     variants = [("clean", img)] + list(zip((sp[0] for sp in specs), degraded))
