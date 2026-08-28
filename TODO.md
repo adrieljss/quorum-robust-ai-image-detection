@@ -44,19 +44,51 @@ already holds. If *per model*, there is headroom for a second backbone.
 - [ ] Delete the stale personal `adrieljss/quorum-cache`
 - [ ] **Revoke the write token that was pasted in chat**, issue a fresh one
 
-### Second push — nobody is blocked on these
+### Second push — **DONE 28 Aug**
+
+Was blocking: the remote predated the `calib_ood` carve, so anyone pulling would
+have calibrated on `sid_calib` and shipped probabilities ~5x worse on unseen
+generators with no error saying so. Verified on the remote — 130 shards,
+`main.csv`, 6 models, still private, and it includes Kacey's `--fit calib`
+`fusion.npz` because the merge landed first. **Albert and Kacey should re-pull.**
+
 - [x] `organizer_val` face + spectral pass — 75,000 spectral / 3,941 face rows
 - [x] ~~`faces/` dataset~~ — **CUT.** Face probe saturates at ~500 images
       (500 -> 0.8892 OOD clean, all 4,128 -> 0.8952). 5.4 GB and a `.rar` to
       feed a model that plateaued eight times ago. Coverage/demographic
       diversity is a *limitations* note, not a download.
 - [x] Re-run `build_manifest.py` — 330,851 rows, assertions A–F green
-- [ ] `push_cache.py` again — `pull_cache.py` picks up the delta
+- [x] Local cache deleted mid-session by a `git worktree remove --force` that
+      followed a Windows directory junction into the real `data/cache`. Restored
+      107/130 shards from the HF push; the 23 `organizer_val` face/spec shards
+      postdated it and were re-embedded. **Do not junction `data/` into a
+      worktree** — copy, or point the code at it.
+- [x] `push_cache.py` again — landed 28 Aug 05:33 UTC
+- [ ] Fresh-pull check: `.gitattributes` now pins `*.csv eol=lf` and
+      `ShardWriter` writes LF, so a pull should no longer show ~973k phantom
+      CSV insertions. Verify once, then trust it
+- [ ] **Still open from the first push, and overdue:** invite Albert, Kacey,
+      Michael, Valentino with **write** access; delete the stale personal
+      `adrieljss/quorum-cache`; **revoke the write token pasted in chat** and
+      issue a fresh one (`hf auth login`). It has org admin rights.
 
-### Handed to Michael or Valentino
-- [ ] **WildFake DALL·E Advanced** — ModelScope, manual. Commands in
-      `docs/HANDOVER.md` §7. `--label 1 --assign-split test_organizer` are
-      not optional.
+### WildFake — **DONE 28 Aug**, by Adriel
+- [x] `scripts/fetch_wildfake.py` — reads the 25.6 GB `DALLE.zip` central
+      directory over HTTP range requests and inflates only
+      `DALLE/Advanced/DALLE3`. ~1.5 GB instead of 25.6 GB, no `modelscope` SDK.
+- [x] **The subset is 3,719 images, not 8,843.** WildFake files it as 8,843
+      entries; 1,808 basenames repeat with an identical CRC32 and size, so the
+      brief's figure is a FILE count. Docs corrected in `DATA_LAYOUT.md`,
+      `HANDOVER.md`, `README.md`.
+- [x] Both embed passes + `build_manifest.py`; verified
+      `{0: 75000, 1: 55785}`, split `test_organizer`, 8,719 unique images
+- [x] `push_cache.py` — 1.48 GB on the remote
+- [x] `eval_grid.py --source organizer_val` — general **0.9837 / 0.9729**,
+      drop 0.0108. First externally-comparable number the project has had.
+- [x] Fixed: `eval_grid.py` wrote every source to the same `robustness.md`, so
+      the organizer run silently overwrote the So-Fake-OOD deliverable. Output
+      path is now per-source, and the blur caveat only prints where it is true
+      (face FALLS under blur on organizer_val: 0.9520 -> 0.8887).
 
 ---
 
@@ -70,7 +102,17 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
 - [x] Try MLP head; it underperformed the linear models on OOD
 - [x] Compare linear alternatives; RidgeClassifier (`alpha=0.001`,
       `solver="lsqr"`) selected at 0.9221 clean / 0.8981 worst
-- [ ] Try multi-crop embedding (PIPELINE §4.5) — cheapest untried upgrade
+- [ ] **Multi-crop / patch self-consistency (PIPELINE §4.5) — promoted to the
+      top of this list.** It is now the highest-value untried idea in the whole
+      project, for three separate reasons and one build:
+      1. It is the principled fix for our largest failure — the tampered branch
+         flags a third of real COCO photographs because it cannot generalise
+         "untampered" to unseen photography. Comparing 3x3 patches *against each
+         other* never needs to know what real photography looks like globally
+      2. It gives us **explainability, which we currently have none of.** A
+         per-patch score is a heat map: a verdict that points at a region beats
+         one that cites a logit, and it is judged
+      3. Zero new parameters, same frozen CLIP, 9x forwards on one pass
 - [x] Freeze the winner into `data/models/general.npz`
 
 ### Albert — regularity / spectral
@@ -80,41 +122,150 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
       as a complementary low-level signal for fusion
 
 ### Kacey — face probe
-- [ ] `quorum/detectors/face.py`, conditioning on `face_px`
-- [ ] Per-variant AUC **and coverage** (detector loses 77% under `noise010`)
+- [x] `quorum/detectors/face.py`, conditioning on `face_px` — 0.9382 clean /
+      0.9151 worst, up from 0.8952 / 0.8620
+- [x] Per-variant AUC **and coverage**
+- [x] Explain why face AUC *rises* under blur (0.9382 → 0.9500 at `blur20`).
+      **Shortcut learning, not survivorship** — blur hurts in-distribution
+      (-0.0047) and helps OOD (+0.0314). The probe partly reads resampling
+      texture in upsampled crops; gain concentrates in small faces (+0.047 vs
+      +0.009) and is anti-correlated with clean AUC across 14 generators
+      (r = -0.685, p = 0.007). HANDOVER-MODELS.md §8
+- [x] Linear vs MLP on the face branch — **linear wins**, 256x fewer parameters
+      and a smaller transfer gap. Was a documented default, now a result. §9
 
 ### Kacey — text
-- [ ] Decide build or cut. **Recommendation: cut**, to protect fusion time.
+- [x] Decide build or cut. **Cut.** Nine hours of OCR for a 7-parameter model
+      against fusion being the critical path. Both slots stay in the fusion
+      vector at neutral fill, so wiring it back later is one line
 
 ---
 
 ## Stage 3 — Calibration and fusion — **Kacey**
 
-The critical path. Nothing downstream works without it, and there is no partial
-credit: a demo without fusion is a demo of one probe.
+Built, but **not shipping as the scorer**. Full reasoning and numbers in
+`docs/HANDOVER-MODELS.md`.
 
-- [ ] Platt scaling per branch, fit on `calib` **only**
-- [ ] Reliability diagrams to verify calibration
-- [ ] CLIP zero-shot content label (face / animal / object / scene / text-heavy)
-      — free, reuses the embedding
-- [ ] `degradation_estimate` feature — fusion must distinguish "no artifacts
-      found" from "could not measure"
-- [ ] `quorum/fusion.py` — logistic regression over the 5-branch input vector
-- [ ] Wire `predict.py` to fusion, replacing the `max()` placeholder
-- [ ] Verify output contract exactly: `[{"image_path": ..., "pred": 0.87}]`
+- [x] Platt scaling per branch, `quorum/calibrate.py`. Calibrators fit on
+      `calib_a`, fusion on `calib_b`, split by `image_id`
+- [x] Reliability diagrams — `docs/figures/reliability.png`
+- [x] CLIP zero-shot content label — `data/models/content_prompts.npz`
+- [x] `degradation_estimate` feature — P(degraded) from the 8 spectral features
+- [x] `quorum/fusion.py` — logistic regression over the 14-column input vector
+- [x] Verify output contract exactly: `[{"image_path": ..., "pred": 0.87}]` —
+      passes, including nested dirs, grayscale/RGBA, and all five extensions
+- [x] Wire `predict.py` to fusion — **resolved: it stays on `max()`.** No longer
+      blocked on the calibration slice; that landed and fusion still does not win. Measured on so_fake_ood clean/worst: raw `max()`
+      0.9042 / 0.8634, fusion 0.8587 / 0.8340, so swapping it in *today* costs
+      ~6 points. `predict.py` keeps `max()` and its docstring records why
+
+### The calibration slice — **DONE (Adriel)**
+
+- [x] **`calib_ood` carved from So-Fake-OOD**, by generator **family** rather
+      than generator: `Ideogram2`/`Ideogram3` or `imagen3`/`Imagen4` on opposite
+      sides would call a sibling model "unseen". Flux + Ideogram + Recraft
+      calibrate (2,044 imgs); GPT + Imagen + Seedream + nano_banana + Hidream
+      stay held back for eval (4,198 imgs). `scripts/build_manifest.py` asserts
+      no generator and no image straddles the boundary
+- [x] `load()` now takes `split` from the manifest, not the shard, so the carve
+      is visible to every branch with no re-embedding. `HANDOVER.md` §5d
+- [x] `calibrate.py` / `fusion.py` default to it
+
+**It fixed calibration, and did not make fusion win.** ECE on unseen generators:
+
+```
+branch    AUC on cal set   ECE (sid_calib)   ECE (calib_ood)   factor
+general           0.9996            0.1026            0.0217     4.7x
+face              0.9976            0.1665            0.0333     5.0x
+spectral          0.6789            0.0774            0.0519     1.5x  <- control
+```
+
+Kacey's mechanism is confirmed — the saturated branches improve ~5x, the branch
+that never aced its calibration set barely moves. Fusion's deficit against
+general narrowed from -0.0112 clean to **-0.0022**, i.e. parity. The +0.0042 from
+the random *generator* split does not survive a family-disjoint one; splitting
+model siblings was flattering the result.
+
+**Parity has a price tag, and quoting it without the price is wrong.** Fusion has
+two fit sets and they are different models — I reported one in prose while
+`__main__` shipped the other. Kacey caught it and added `--fit`:
+
+```
+fit on            ood clean  ood worst  tampered
+general alone        0.9170     0.8848    0.3698
+calib                0.9148     0.8833    0.3806   <- default, shipped
+calib+tampered       0.8526     0.8288    0.8483
+```
+
+The parity model reaches parity by becoming the general probe (`cal_tampered`
+weight +0.100). Fusion can match general on the headline **or** detect tampering,
+never both. `python -m quorum.fusion` now prints both rows either way.
+
+So `predict.py` stays on `max()` on its own merits: the task is disjunctive and a
+linear combiner loses on the pooled full task (0.8511 vs 0.8597 held out — the
+0.8440-vs-0.8728 figures this line used to carry predate the leak fix and made
+the margin look 3x wider than it is). `HANDOVER.md`
+§5e. The carve still earns its place — every probability the demo displays is now
+~5x better calibrated on generators it has never seen.
+
+Original blocker note, for the record:
+
+```
+branch     AUC on cal set   ECE in  ECE out  factor
+general            0.9995   0.0022   0.1085   49.5x
+face               0.9985   0.0143   0.1697   11.9x
+tampered           0.9636   0.0062   0.0112    1.8x
+spectral           0.6807   0.0520   0.0741    1.4x
+```
+
+The fusion retrain afterwards is seconds of compute. The split is the blocker,
+not the training.
 
 ---
 
 ## Stage 4 — Evaluation — **Adriel**
 
-- [ ] `scripts/eval_grid.py` — clean vs all 14 transforms, per branch and fused
-- [ ] **Robustness Evaluation Summary** table (required deliverable)
-- [ ] Reference number on `organizer_val` — **blocked, and hard-blocked.**
-      COCO val2017 is 100% real, so the organizer set has no positive class and
-      **no AUROC can be computed at all** until WildFake DALL·E Advanced lands.
-      This is the only externally-comparable number we get. Chase it.
+- [x] `scripts/eval_grid.py` — all 15 settings x 4 branches, plus the combiner
+      comparison. Refits from cache each run so it cannot drift from a stale
+      `.npz`, and reports held-out rows only (excludes `calib_ood`)
+- [x] **Robustness Evaluation Summary** — `docs/robustness.md`, regenerated.
+      general 0.9170/0.8848, face 0.9421/0.9168, spectral 0.6736/0.5471,
+      tampered 0.9528/0.8962 (clean/worst)
+- [x] Carries the blur caveat inline so the face row cannot be misread as
+      robustness — it is the shortcut-learning result from HANDOVER-MODELS §8
+- [x] `scripts/try_face.py` — score individual images through the face + general
+      probes, `--save-crops` to verify alignment. ~13s model load then ~50ms an
+      image, so pass them all in one invocation. Useful template for the demo
+      backend: load the model once at import, never per request
+- [x] **`predict.py` has an operating point.** It never did — 0.5 was the
+      sigmoid default, chosen by nobody, and it cost 0.09 precision while
+      flagging 25.5% of COCO photographs as AI. `scripts/pick_threshold.py`
+      picks 0.766 on `calib_ood`; the score is shifted so 0.5 *is* that point,
+      which leaves AUROC bit-identical. A trade, not a free win — recall
+      0.882 → 0.767, F1 0.820 → 0.808, and 0.5 was already near F1-optimal.
+      `HANDOVER.md` §5f.6
+- [x] `scripts/try_grid.py` — one image through all 15 variants, or `--chain`
+      for all 196 composed pairs. The robustness claim on something you can
+      look at. Demo material
+- [x] **Chained degradation measured** — `scripts/chain_eval.py`. The official
+      grid is single transforms only; composed pairs cost ~0.013 AUROC and
+      degradation does **not** compound. `HANDOVER.md` §5f.7
+- [ ] **Re-run `chain_eval.py --n 100 --out c100.npz`** — the current number is
+      n=50, where the AUROC standard error (~0.04) is wider than the entire
+      spread of the worst-chain table. ~70 min, one 2.9GB shard download
+- [ ] Fold the chained result into `docs/robustness.md` once the 200-image run
+      lands. It is the only number in the submission that measures what actually
+      happens to images in the wild
+- [x] Reference number on `organizer_val` — **DONE 28 Aug.** general
+      **0.9837 clean / 0.9729 worst**, drop 0.0108, over 8,719 images.
+      `docs/robustness-organizer_val.md`. Two caveats belong with it: the
+      shipped `max` is *worse* here than general alone (0.9541/0.8841),
+      because there are no tampered images for the tampered branch to catch;
+      and DALL·E 3 is an easier target than So-Fake-OOD, so quote 0.9170 as
+      the headline, not this.
 - [ ] Per-content-bucket AUROC — wild variance means we are partly reading
       semantics, and saying so is a strength
+- [x] Re-run the grid once WildFake lands — done; see above
 
 ---
 
@@ -124,8 +275,24 @@ Feeds Innovation & Problem Insight at 20%. Not an afterthought.
 
 - [ ] 3–5 representative **false positives**, each with a hypothesis
 - [ ] 3–5 representative **false negatives**, same
+- [x] Two concrete cases already banked: a FLUX_2 face the general probe rates
+      0.5438 (a coin flip) and the face branch catches at 0.9567 — the
+      complementarity argument in one image; and a TAMPERED image where both
+      branches sag (0.63 face / 0.44 general), the documented inversion
+- [x] Most of the narrative is already written — HANDOVER-MODELS §11 on why a
+      single probe scores 0.91 on unseen generators and 0.37 on edited photos
+- [x] `chain_eval.py` prints the most confident errors by `image_id`, so a run
+      hands you the cases directly. The shard is deleted after the pass — without
+      the id a false positive found there can never be looked at again
+- [x] **The strongest case is banked and written up**: the tampered branch fires
+      on 33% of real COCO photographs, and the obvious fix (more real-photo
+      diversity) made it *worse* — COCO false positives 13.6% → 53.5% while its
+      own AUROC rose 0.9528 → 0.9884. Capacity and data are not the lever.
+      `HANDOVER.md` §5g
 - [ ] Stated trade-offs: robustness vs clean accuracy, generalisation vs
-      in-distribution ceiling, false-positive cost at platform scale
+      in-distribution ceiling, false-positive cost at platform scale.
+      **Three are now measured, not asserted** — the threshold trade (§5f.6),
+      the fusion trade (§5c), and the `max` false-positive cost (§5g)
 
 ---
 
@@ -167,6 +334,29 @@ cheap to find early and expensive to find in the last 48 hours.
 - [ ] Robustness summary attached (Stage 4)
 - [ ] Error analysis note attached (Stage 5)
 
+### Positioning — two arguments that are ours to make
+
+- [ ] **Our evaluation is harder than the public work, and someone else says so.**
+      The widely-forked Kaggle notebook `darkmatternet/can-ai-detect-ai-cnn-vs-vit-xai`
+      benchmarks on CIFAKE — one generator, one real source, 32x32, and a test
+      split that shares its generator with train. Its own "Fork Experiments"
+      list opens with *"Add a generator-held-out split rather than a random image
+      split"* and closes with *"The strongest extension is not a larger model. It
+      is a more difficult, generator-shifted evaluation."* That is exactly the
+      `calib_ood` carve. An independent author naming our design decision as
+      their recommended next step beats asserting it ourselves.
+      **Do not claim we beat them on score** — their benchmark is easier, so
+      their number is probably higher. Our in-distribution equivalent is 0.9996;
+      the gap to 0.9170 is the cost of being measured honestly
+- [ ] **Cost framing — say it the defensible way.** Not "a sub-1000 parameter
+      detector" (we run a 304M ViT on every image and a judge will find that in
+      ten seconds). Say: *769 trained parameters on a backbone you already run.*
+      Where CLIP embeddings already exist, detection costs 0.32 us and a 3.5 KB
+      file; the marginal cost of a new branch is zero inference; a new generator
+      costs seconds, not GPU-hours. State the frozen-backbone limitation in the
+      same breath — it is what makes the efficiency claim credible.
+      `HANDOVER.md` §5f.8
+
 ---
 
 ## Critical path
@@ -184,9 +374,18 @@ Adriel: data ─┬─> Albert: general + spectral ─┐
                                                  submission
 ```
 
-**Kacey's fusion is the bottleneck.** If schedule slips, cut the text branch and
-`provenance.py` first — both are already flagged as cut candidates in SPEC.
+**Fusion is no longer the bottleneck** — built, measured, and deliberately not
+shipped as the scorer. The critical path is now the demo (Stage 6) and the two
+required write-ups (Stages 4–5). Text and `provenance.py` are already cut.
 
 **Michael and Valentino are not blocked by anyone.** The demo can be fully built
 against stubbed scores and wired to the real model in an afternoon. Treat any
 week where the demo has not progressed as a scheduling failure, not a dependency.
+
+**The model side is in good shape and is no longer where the risk is.** As of
+28 Aug the shipped scorer has a measured operating point, a family-disjoint
+eval, a robustness grid, a composed-degradation result, and every major trade
+quantified rather than asserted. What it does *not* have is anything to show:
+no demo, and no explainability. Both are judged, and one build — patch-level
+scoring (Albert, Stage 2) — produces a heat map and fixes our largest failure
+at the same time. That is the highest-leverage thing left.

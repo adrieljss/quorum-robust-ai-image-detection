@@ -16,7 +16,25 @@ from quorum.embed import MANIFESTS
 
 # Highest priority wins when the same image turns up in two sources: an eval
 # copy always beats a train copy, so a duplicate can never leak into training.
-PRIORITY = ["test_organizer", "test_ood", "test_wild", "calib", "train"]
+PRIORITY = ["test_organizer", "test_ood", "test_wild", "calib_ood", "calib", "train"]
+
+# ---- generator-disjoint calibration carve (HANDOVER-MODELS 6) ----
+#
+# sid_calib shares generators with train, so every branch scores ~0.999 there and
+# Platt fits a slope that manufactures over-confidence the moment a new generator
+# appears -- measured 49.5x ECE blowup on general, against 1.8x for the one branch
+# that does not ace its calibration set. Fusion loses because of it.
+#
+# The fix is a calibration slice whose generators the probes have never seen. Carve
+# it out of So-Fake-OOD by FAMILY, not by generator: Ideogram2/Ideogram3 or
+# imagen3/Imagen4 on opposite sides would not be "unseen" in any meaningful sense
+# and would flatter the result. Three whole families, three distinct vendors.
+CALIB_FAMILIES = {"Flux.1_pro", "FLUX_2",        # Black Forest Labs
+                  "Ideogram2", "Ideogram3",      # Ideogram
+                  "Recraftv3"}                   # Recraft
+# Eval keeps GPT*, Imagen*, Seedream*, nano_banana*, Hidream -- the strongest and
+# the hardest generators both stay on the measuring side.
+CALIB_REAL_FRAC = 3          # keep 1 real image in 3, hashed so it is deterministic
 
 # General embeddings only. face_*/spec_* are BRANCH caches keyed on the same
 # (image_id, variant) and get left-joined at fusion time -- folding them in here
@@ -42,8 +60,23 @@ val = df[df.source == "organizer_val"]
 assert len(val) > 0, "organizer val missing -- run embed_dir.py on it (see RUNBOOK 5)"
 assert (val.split == "test_organizer").all(), "ORGANIZER VAL LEAKED INTO TRAINING"
 
-# B. OOD set eval-only
-assert (df[df.source == "so_fake_ood"].split == "test_ood").all(), "OOD LEAKED"
+# ---- apply the carve ----
+ood = df.source == "so_fake_ood"
+is_ai = df.label == 1
+pick = ood & ((is_ai & df.generator.isin(CALIB_FAMILIES))
+              | (~is_ai & (df.image_id.str[:8].apply(int, base=16) % CALIB_REAL_FRAC == 0)))
+df.loc[pick, "split"] = "calib_ood"
+
+# B. OOD set is eval-only apart from the deliberate calibration carve, and the two
+# sides share no generator family -- that disjointness is the whole point.
+assert df[ood].split.isin(["test_ood", "calib_ood"]).all(), "OOD LEAKED"
+ai = df[ood & is_ai]
+gen_cal = set(ai[ai.split == "calib_ood"].generator)
+gen_ev = set(ai[ai.split == "test_ood"].generator)
+assert gen_cal and gen_ev, "carve produced an empty side"
+assert not (gen_cal & gen_ev), f"generator on both sides: {gen_cal & gen_ev}"
+assert not (df[ood & (df.split == "calib_ood")].image_id
+            .isin(df[ood & (df.split == "test_ood")].image_id).any()), "image on both sides"
 
 # C. calibration split trains nothing
 assert (df[df.source == "sid_calib"].split == "calib").all()
@@ -57,7 +90,7 @@ tr = df[(df.split == "train") & (df.variant == "clean")]
 assert 0.35 < tr.label.mean() < 0.65, f"train is {tr.label.mean():.0%} AI -- rebalance"
 
 # F. eval images carry the whole grid (catches a shard that crashed midway)
-ev = df[df.split.str.startswith("test") | (df.split == "calib")]
+ev = df[df.split.str.startswith(("test", "calib"))]
 per = ev.groupby("image_id").variant.nunique()
 bad = per[per != N_VARIANTS]
 assert bad.empty, f"{len(bad)} eval images missing variants (expect {N_VARIANTS}):\n{bad.head()}"

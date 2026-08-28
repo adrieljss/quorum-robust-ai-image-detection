@@ -694,9 +694,9 @@ label,source,subclass,generator,split,image_id,variant,face_present,face_px
 0,organizer_val,real,none,test_organizer,89e38a8f82666ce3,jitter02,1,72.08698272705078
 0,organizer_val,real,none,test_organizer,89e38a8f82666ce3,crop08,1,89.17351531982422
 0,organizer_val,real,none,test_organizer,fbf88606a39dffac,clean,1,164.05099487304688
-0,organizer_val,real,none,test_organizer,fbf88606a39dffac,jpeg90,1,168.8246307373047
-0,organizer_val,real,none,test_organizer,fbf88606a39dffac,jpeg70,1,168.8246307373047
-0,organizer_val,real,none,test_organizer,fbf88606a39dffac,jpeg50,1,168.8246307373047
+0,organizer_val,real,none,test_organizer,fbf88606a39dffac,jpeg90,1,164.03245544433594
+0,organizer_val,real,none,test_organizer,fbf88606a39dffac,jpeg70,1,163.52401733398438
+0,organizer_val,real,none,test_organizer,fbf88606a39dffac,jpeg50,1,171.90821838378906
 0,organizer_val,real,none,test_organizer,fbf88606a39dffac,jpeg30,1,168.8246307373047
 0,organizer_val,real,none,test_organizer,fbf88606a39dffac,blur05,1,165.64988708496094
 0,organizer_val,real,none,test_organizer,fbf88606a39dffac,blur10,1,170.8409881591797

@@ -9,16 +9,24 @@ AUROC per branch under each degradation setting. The clean-to-worst **drop** is 
 ```
           clean  worst worst_variant   drop
 general  0.9221 0.8981      noise002 0.0239
-face     0.8952 0.8620       noise01 0.0332
+face     0.9421 0.9168       noise01 0.0252
 spectral 0.7365 0.5596        blur10 0.1769
-tampered 0.9516 0.8945       noise01 0.0570
+tampered 0.9528 0.8962       noise01 0.0566
 ```
+
+> **Read the `face` row with care.** Its AUC *rises* under blur (0.9382 clean ->
+> 0.9500 at `blur20`). That is not robustness and not survivorship -- on the
+> identical 1,624 images present at both settings it still rises 0.8951 ->
+> 0.9264. Blur hurts on generators we trained on (-0.0047) and helps on unseen
+> ones (+0.0314), concentrated in small upsampled faces and anti-correlated with
+> clean AUC (r = -0.685, p = 0.007). The clean number is inflated by
+> pipeline-specific texture CLIP writes into the embedding. Working:
+> `docs/HANDOVER-MODELS.md` section 8.
 
 ## Full grid
 
 ```
            general   face  spectral  tampered
-clean       0.9221 0.8952    0.7365    0.9516
 blur05      0.9218 0.8913    0.7091    0.9516
 blur10      0.9198 0.9087    0.5596    0.9473
 blur20      0.9138 0.9256    0.5933    0.9328
@@ -34,3 +42,30 @@ noise01     0.8994 0.8620    0.5885    0.8945
 resize025   0.9161 0.9066    0.5751    0.9469
 resize05    0.9215 0.9174    0.6027    0.9493
 ```
+
+![Robustness grid](figures/robustness.png)
+
+_Same numbers as a heatmap, rows sorted by mean drop from clean. Regenerate with `python scripts/make_figures.py robustness`._
+
+## Where the decision is made
+
+AUROC above is threshold-free and says nothing about whether the shipped cut works. It did not: 0.5 was the sigmoid default and flagged a quarter of COCO photographs as AI. `predict.py` now cuts at an operating point picked on `calib_ood`.
+
+![Threshold sweep](figures/threshold.png)
+
+![Score separation](figures/separation.png)
+
+## Combiners, on the full task
+
+`FULL` pools So-Fake-OOD (fully-synthetic) with sid_tampered_eval (locally edited) against the same real pool. The general probe is *inverted* on tampering, so a single-branch score that looks strong on one column collapses on the other.
+
+```
+               FULL avg  FULL worst  so_fake_ood clean  so_fake_ood worst
+general alone    0.6851      0.6542             0.9170             0.8848
+max(gen,tamp)    0.8597      0.8210             0.9114             0.8771
+fusion LR        0.8511      0.8150             0.9053             0.8796
+```
+
+The task is **disjunctive** -- "AI touched this" = fully-synthetic OR locally edited -- so `max` beats a linear combiner in log-odds space, which is forced into one additive trade-off across two complementary detectors. `predict.py` ships `max` on this measurement.
+
+The generator-disjoint calibration slice that was once the open data task now exists (`calib_ood`, carved by generator FAMILY) and **fusion still does not win**: it reaches parity on the headline only by scoring 0.38 on tampering, or handles tampering only by dropping ~6 points on the headline. `HANDOVER.md` sections 5c and 5e carry both fit sets.

@@ -22,7 +22,7 @@ five people without everyone downloading everything.
 
 ## 1. The single most important rule
 
-**COCO val2017 (4998 images) and the WildFake DALL·E Advanced subset (8843
+**COCO val2017 (5,000 images) and the WildFake DALL·E Advanced subset (3,719
 images) are the organizer's validation set. They must never enter training.**
 
 Training on them makes every number meaningless and would look like cheating in
@@ -128,8 +128,9 @@ This is better than manufacturing a held-out split yourself:
 
 ### 4.3 Organizer validation — quarantined
 
-COCO val2017 (4998 real) + WildFake DALL·E Advanced (8843 AI). The brief provides
-this to demonstrate performance and track iteration. It does **not** count toward
+COCO val2017 (5,000 real) + WildFake DALL·E Advanced (3,719 AI — see the note
+below; it is NOT 8,843). The brief provides this to demonstrate performance and
+track iteration. It does **not** count toward
 the final score, and must not be trained on.
 
 Keep it in its own folder with its own manifest split. Report it as a reference
@@ -246,9 +247,22 @@ unzip -q val2017.zip && rm val2017.zip
 ls val2017 | wc -l    # expect 4998–5000
 ```
 
-WildFake DALL·E Advanced subset comes from ModelScope
-(`hy2628982280/WildFake`). Use the site's translation button. Take **only** the
-DALL·E Advanced subset the brief names.
+WildFake DALL·E Advanced comes from ModelScope (`hy2628982280/WildFake`). Do NOT
+download it by hand: the images ship in one 25.6 GB `DALLE.zip` and the subset we
+want is ~1.5 GB of it. `scripts/fetch_wildfake.py` reads the zip's central
+directory over HTTP range requests and inflates only `DALLE/Advanced/DALLE3`.
+
+```bash
+python scripts/fetch_wildfake.py --list   # asserts the subset is still 3,719
+python scripts/fetch_wildfake.py          # ~1.5 GB, resumable
+```
+
+**3,719 distinct images. WildFake files them as 8,843 entries under prompt-run
+folders, but 1,808 basenames repeat with an identical CRC32 and size -- the
+names are content hashes. Unique (CRC, size) pairs total 3,719 exactly,
+verified from the zip's central directory. The 8,843 figure the brief quotes is
+a FILE count; anyone reporting it as an image count is off by 5,124 duplicates
+that `image_id` silently drops.**
 
 Put a `README_DO_NOT_TRAIN.txt` in this folder. It costs nothing and it stops the
 mistake at 3am.
@@ -305,7 +319,7 @@ python scripts/build_manifest.py \
 | `source` | `sid_set`, `so_fake_ood`, `organizer_val`, `openimages`, ... |
 | `generator` | from So-Fake-OOD's field; `unknown` for SID_Set; `real` for reals |
 | `subclass` | `real` / `full_synthetic` / `tampered` |
-| `split` | `train` / `calib` / `test_ood` / `test_organizer` / `test_wild` |
+| `split` | `train` / `calib` / **`calib_ood`** / `test_ood` / `test_organizer` / `test_wild` |
 | `orig_format` | `jpg` / `png` / `webp` |
 
 Use a **content hash** for `image_id`, not the filename. Filenames collide across
@@ -339,7 +353,9 @@ assert len(val) > 0, "organizer val missing — cannot report reference number"
 
 ```python
 ood = df[df.source == "so_fake_ood"]
-assert (ood.split == "test_ood").all(), "OOD set leaked into training"
+assert ood.split.isin(["test_ood", "calib_ood"]).all(), "OOD set leaked into training"
+# calib_ood is the generator-family-disjoint calibration carve (HANDOVER.md 5d).
+# build_manifest.py additionally asserts the two sides share no generator and no image.
 ```
 
 **C. Format does not predict label**
@@ -367,7 +383,7 @@ split             real     ai      total
 train            18000   18000    36000
 calib             3000    3000     6000
 test_ood         (from So-Fake-OOD, ~100k — subsample to 10k for speed)
-test_organizer    4998    8843    13841
+test_organizer    5000    3719     8719
 test_wild          400       0      400
 ```
 

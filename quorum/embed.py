@@ -111,7 +111,11 @@ class ShardWriter:
             return
         tag = f"{self.source}_{self.shard:03d}"
         np.save(CACHE / f"{tag}.npy", np.stack(self.vecs))
-        pd.DataFrame(self.rows).to_csv(MANIFESTS / f"rows_{tag}.csv", index=False)
+        # LF explicitly: the default on Windows is CRLF, so a fresh pull_cache.py
+        # rewrites every tracked CSV and the next `git add -A` commits ~973k
+        # phantom insertions. Paired with *.csv eol=lf in .gitattributes.
+        pd.DataFrame(self.rows).to_csv(MANIFESTS / f"rows_{tag}.csv", index=False,
+                                       lineterminator="\n")
         print(f"  flushed {tag}: {len(self.vecs)} embeddings")
         self.vecs, self.rows = [], []
         self.shard += 1
@@ -151,7 +155,11 @@ def embed_variants(emb, writer, img, row, full_grid: bool, k: int = 3,
     if save_dir is not None:
         f = Path(save_dir) / f"{iid}.jpg"
         if not f.exists():
-            img.save(f, "JPEG", quality=95)      # q95 again = same bytes, same id
+            # Named from the PRE-save id, which is the joinable one. JPEG q95 is
+            # NOT idempotent: measured over 12 COCO images, a second round-trip
+            # moves 13-53% of pixels (max delta 29). So a consumer must trust
+            # this filename and never re-hash the bytes it reads back.
+            img.save(f, "JPEG", quality=95)
     if emb is None:
         return iid                               # pixel-only pass
     specs = variant_specs(iid, None if full_grid else k)
