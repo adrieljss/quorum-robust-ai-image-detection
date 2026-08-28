@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, RidgeClassifier
 from sklearn.metrics import roc_auc_score
 
 from quorum.embed import load_source
@@ -29,6 +29,11 @@ def load(source: str):
 
 def fit(X, y):
     return LogisticRegression(max_iter=2000).fit(X, y)
+
+
+def fit_general(X, y):
+    """Selected general-probe model; spectral and tampered use ``fit``."""
+    return RidgeClassifier(alpha=0.001, solver="lsqr").fit(X, y)
 
 
 def auc_by_variant(clf, X, R):
@@ -63,7 +68,7 @@ def train_tampered():
 if __name__ == "__main__":
     Xtr, Rtr = load("sid_train")
     print(f"general: train {Xtr.shape}  {Rtr.label.value_counts().to_dict()}")
-    clf = fit(Xtr, Rtr.label.values)
+    clf = fit_general(Xtr, Rtr.label.values)
     save(clf)
 
     try:

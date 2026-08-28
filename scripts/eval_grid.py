@@ -19,7 +19,7 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from quorum.detectors.general import load, fit, auc_by_variant, train_tampered
+from quorum.detectors.general import load, fit, fit_general, auc_by_variant, train_tampered
 
 OUT = Path(__file__).resolve().parents[1] / "docs" / "robustness.md"
 
@@ -30,7 +30,8 @@ BRANCHES = {"general": "", "face": "face_", "spectral": "spec_"}
 def grid(prefix, eval_source, train_source="sid_train"):
     Xtr, Rtr = load(prefix + train_source)
     X, R = load(prefix + eval_source)
-    return auc_by_variant(fit(Xtr, Rtr.label.values), X, R)
+    trainer = fit_general if prefix == "" else fit
+    return auc_by_variant(trainer(Xtr, Rtr.label.values), X, R)
 
 
 def tampered_grid(real_source):
