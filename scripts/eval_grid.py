@@ -22,7 +22,15 @@ import pandas as pd
 from quorum.detectors.face import design, px_stats
 from quorum.detectors.general import load, fit, auc_by_variant
 
-OUT = Path(__file__).resolve().parents[1] / "docs" / "robustness.md"
+DOCS = Path(__file__).resolve().parents[1] / "docs"
+
+
+def out_path(source):
+    """so_fake_ood owns robustness.md -- it is the required deliverable. Every
+    other source gets its own file, because a fixed path meant `--source
+    organizer_val` silently overwrote the headline table with a different one."""
+    return DOCS / ("robustness.md" if source == "so_fake_ood"
+                   else f"robustness-{source}.md")
 
 # branch -> cache prefix. Same probe, same 15-variant grid, different features.
 BRANCHES = {"general": "", "face": "face_", "spectral": "spec_"}
@@ -39,6 +47,11 @@ BLUR_CAVEAT = """
 > pipeline-specific texture CLIP writes into the embedding. Working:
 > `docs/HANDOVER-MODELS.md` section 8.
 """
+
+
+def blur_rises(df):
+    return ("face" in df.columns and "blur20" in df.index
+            and df.loc["blur20", "face"] > df.loc["clean", "face"])
 
 
 def held_out(X, R):
@@ -151,7 +164,10 @@ def main(source, do_comb):
         f"clean-to-worst **drop** is the robustness claim; a high mean with a large "
         f"drop is a fragile detector.\n",
         "\n## Per-branch summary\n", fence, summary.to_string(float_format="%.4f"), fence,
-        BLUR_CAVEAT,
+        # Only where it is actually true. On organizer_val the face row FALLS
+        # under blur (0.9520 -> 0.8887), so emitting this unconditionally
+        # contradicted the table three lines above it.
+        BLUR_CAVEAT if blur_rises(df) else "",
         "\n## Full grid\n", fence, df.to_string(float_format="%.4f"), fence,
         "\n![Robustness grid](figures/robustness.png)\n\n_Same numbers as a "
         "heatmap, rows sorted by mean drop from clean. Regenerate with "
@@ -181,14 +197,15 @@ def main(source, do_comb):
             "by dropping ~6 points on the headline. `HANDOVER.md` sections 5c and "
             "5e carry both fit sets.\n",
         ]
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text("".join(parts), encoding="utf-8")
+    out = out_path(source)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(parts), encoding="utf-8")
 
     print(df.to_string(float_format="%.4f"), "\n")
     print(summary.to_string(float_format="%.4f"))
     if comb is not None:
         print("\n" + comb.to_string(float_format="%.4f"))
-    print(f"\n-> {OUT}")
+    print(f"\n-> {out}")
 
 
 if __name__ == "__main__":

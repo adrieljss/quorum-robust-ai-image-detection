@@ -432,6 +432,70 @@ independent measurements instead of one.
 would have scored the calibration slice as if it were held out. Both now filter
 `calib_ood`, and they agree exactly (face 0.9421 / 0.9168).
 
+### 4b. Three ideas measured and rejected, 29 Aug
+
+Recorded so nobody spends real time rediscovering them. All three are cheap to
+re-run if you doubt the result.
+
+**`RidgeClassifier` instead of `LogisticRegression`** (Albert's suggestion).
+Ridge is marginally better on rank quality alone -- general branch 0.9191 clean
+vs 0.9170, and a smaller drop, 0.0243 vs 0.0321. It still loses:
+
+- No `predict_proba`. The deliverable is `pred` in [0,1] and the whole
+  operating-point / Platt / ECE apparatus is probabilistic. Ridge's
+  `decision_function` spans about +-2 and is not log-odds, so shipping it means
+  bolting Platt on top -- and Platt scaling *is* logistic regression.
+- `max(gen, tamp)` assumes both branches share a scale. Log-odds are that
+  scale; two independent ridge fits are not.
+- With the threshold re-picked on `calib_ood` for each, accuracy ties (0.7979
+  vs 0.7976) but **precision drops 0.8643 -> 0.8359 and FPR rises 0.1113 ->
+  0.1460** -- the exact axis section 5f.6 moved the other way.
+
+The useful part of the idea is more regularisation, and `C` is already tuned:
+C=0.1 -> 0.9043, **C=1.0 -> 0.9170**, C=10 -> 0.9164 (clean, so_fake_ood).
+
+**Patch-level self-consistency (3x3 multi-crop CLIP).** Was Tier 1 in
+`TODO-FACE.md` and the top of Albert's list; `PIPELINE.md` 4.5 called it the
+cheapest untried upgrade. It does not work. 300 SID_Set validation images, 9
+patches plus the global embedding through the same frozen CLIP, 8 relative
+features (pairwise cosine spread, distance to global, odd-one-out):
+
+```
+general alone      0.7542
+patch alone        0.5220     <- chance
+general + patch    0.7516     <- fails the "helps in combination" gate
+```
+
+Every feature is at or below chance and the effect sizes run *backwards* --
+tampered images have LESS patch variance than real ones (pair_mean -0.255 SD,
+g_range -0.265 SD). At 1/9-tile granularity an edit is either too small to move
+the tile's embedding or too semantically coherent for CLIP to care. A full
+9-crop re-embed of the cache would have been 2,977,659 forwards, ~11.4 h, and
+~10.8 GB to re-upload. The 10-minute PoC is in the transcript; rebuild it before
+believing any argument to the contrary.
+
+**The tampered "inversion" is mostly a real-pool artifact.** This one corrects a
+claim we have been repeating. `predict.py` and `eval_grid.py` both say the
+general probe scores 0.37 on tampered images *because a locally-edited photo is
+globally authentic*. The number is right; the cause is not. Same probe, same
+1,499 clean tampered images, three different real pools:
+
+```
+  vs sid_calib      (n=2,000)  AUROC 0.7414   real median logit  -5.971
+  vs organizer_val  (n=5,000)  AUROC 0.6280   real median logit  -4.707
+  vs so_fake_ood    (n=3,072)  AUROC 0.3704   real median logit  -2.316
+                               tampered median logit  -3.598
+```
+
+So-Fake-OOD's *real* photographs score higher than SID's tampered images. The
+probe ranks tampered above SID reals perfectly well; what breaks is that its
+notion of "real" is fitted to SID_Set and does not transfer. That is the same
+disease as the COCO false positives in section 5f.6, which means **the tampered
+inversion and the false-positive rate are one bug, not two**, and real-photo
+diversity should move both. Consistent with section 5g: adding a second real
+distribution to the tampered probe made COCO worse (13.6% -> 53.5%), i.e. the
+fix is many distributions, not two.
+
 ### 5. Tooling
 
 - **`scripts/eval_grid.py`** — regenerates `docs/robustness.md`, the required
@@ -650,8 +714,8 @@ Reproduce: `scripts/pick_threshold.py` for the threshold table.
 
 | item | owner | blocking |
 |---|---|---|
-| **WildFake DALL·E Advanced** (ModelScope, manual) | Michael or Valentino | the organizer benchmark — see below |
-| **Push the cache again** — remote predates the carve | Adriel | anyone who pulls calibrates on `sid_calib` |
+| ~~**WildFake DALL·E Advanced**~~ — **done 28 Aug**, `scripts/fetch_wildfake.py` | — | — |
+| ~~**Push the cache again**~~ — **done**, 1.48 GB on the remote | — | — |
 | `quorum/detectors/spectral.py` — features exist, model is 9 params | Albert | fusion's weakest input |
 | 25 all-zero vectors in `spec_so_fake_ood` (§4b) | Albert | nothing, but it is silent |
 | `real_extra/openimages` — real-class diversity | optional | — |
@@ -662,17 +726,39 @@ Reproduce: `scripts/pick_threshold.py` for the threshold table.
 | ~~`faces/` dataset~~ — **cut**, probe saturates at ~500 imgs | — | — |
 | ~~text branch~~ — **cut** by Kacey, slots kept at neutral fill | — | — |
 
-**`organizer_val` cannot be scored at all until WildFake lands.** COCO val2017 is
-100% real, so `test_organizer` has 5,000 negatives and zero positives — there is
-no positive class and therefore no AUROC, not even a bad one. It is the only
-externally-comparable number the submission gets.
+**`organizer_val` is scored.** WildFake DALL·E Advanced landed 28 Aug and the
+benchmark is 5,000 COCO real + 3,719 WildFake AI = 8,719 images across 15
+variants. Full table in `docs/robustness-organizer_val.md`.
 
-### WildFake commands, for whoever takes it
+```
+          clean  worst worst_variant   drop
+general  0.9837 0.9729        crop08 0.0108
+face     0.9520 0.8887        blur20 0.0633
+spectral 0.6341 0.5199     resize025 0.1143
+tampered 0.9069 0.7286       noise01 0.1782
+```
+
+`general` is the strongest result in the project -- 0.9837 clean and a 0.0108
+drop across the whole grid. Two things must be said next to it rather than
+under it:
+
+1. **The shipped `max` combiner is WORSE here than the general probe alone**
+   (0.9541 / 0.8841 vs 0.9837 / 0.9729). `organizer_val` contains no tampered
+   images, so the tampered branch can only add false positives to it. On the
+   pooled task max still wins (FULL avg 0.9113 vs 0.8849), so `max` stays --
+   but it costs ~0.03 on the organizer's own benchmark to buy ~0.026 on the
+   full one, and that trade should be stated, not buried.
+2. **DALL·E 3 is an easier target than So-Fake-OOD's generators.** 0.9837
+   here against 0.9170 on So-Fake-OOD is a statement about the benchmark, not
+   about our robustness. Quote the So-Fake-OOD number as the headline.
+
+### WildFake commands — already run, kept so the pass is reproducible
 
 ```powershell
-# modelscope.cn -> hy2628982280/WildFake
-# ONLY the "DALL-E Advanced" subset (8,843 images). Not the whole dataset.
-# Extract to: data/raw/organizer_val/wildfake_dalle_adv/
+# 3,719 distinct images (NOT 8,843 -- that is WildFake's file count, and 1,808
+# basenames repeat byte-identically). Reads the 25.6GB zip's central directory
+# over HTTP ranges and pulls only DALLE/Advanced/DALLE3, ~1.5GB.
+python scripts/fetch_wildfake.py
 
 python scripts/embed_dir.py --dir data/raw/organizer_val/wildfake_dalle_adv `
   --source organizer_val --assign-split test_organizer --label 1 `
@@ -686,4 +772,19 @@ python scripts/build_manifest.py
 ```
 
 `--label 1` and `--assign-split test_organizer` are **not optional**. Assertion A
-catches a wrong split; nothing catches a wrong label.
+catches a wrong split. Nothing in `build_manifest.py` catches a wrong *label*, so
+run this before pushing -- it is the only thing standing between a typo and a
+benchmark number that is silently inverted:
+
+```powershell
+python -c "import sys; sys.path.insert(0,'.')
+from quorum.detectors.general import load
+X,R = load('organizer_val')
+print(R.label.value_counts().to_dict(), R.split.unique(), R.image_id.nunique())
+assert R.label.nunique() == 2, 'still one class -- label went in wrong'
+assert set(R.split) == {'test_organizer'}, R.split.unique()
+assert R.image_id.nunique() == 8719, R.image_id.nunique()
+print('ok')"
+```
+
+Expect `{0: 75000, 1: 55785}`, `['test_organizer']`, `8719` images.

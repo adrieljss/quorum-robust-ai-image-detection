@@ -106,7 +106,7 @@ python scripts/try_face.py photo.jpg other.png --save-crops out/
 | Branches | general, tampered, face, spectral features cached; `detectors/spectral.py` not yet written |
 | Combiner | `max(general, tampered)`, chosen on measurement; `fusion.py` built and reproducible |
 | Threshold | 0.766 on the raw score, picked on `calib_ood`, shipped as a shift so 0.5 is the cut |
-| Eval | `docs/robustness.md` (15 settings); composed pairs measured separately at ~−0.013 AUROC |
-| Held out | `organizer_val` unscoreable until WildFake lands (no positive class) |
+| Eval | `docs/robustness.md` (So-Fake-OOD, the headline); `docs/robustness-organizer_val.md` (organizer benchmark, general 0.9837/0.9729); composed pairs ~−0.013 AUROC |
+| Held out | `organizer_val` = 5,000 COCO real + 3,719 WildFake DALL·E Advanced = 8,719 images |
 | Cost | 769 trained params on a frozen 304M backbone — 3.5 KB on disk, 0.32 µs/image once embedded |
-| Next | demo backend/frontend, error-analysis note, patch-level scoring (fixes false positives *and* gives explainability) |
+| Next | demo backend/frontend, error-analysis note. Patch-level scoring **measured and rejected** — 0.5220 AUROC alone, and it makes the general probe worse in combination (0.7516 vs 0.7542) |

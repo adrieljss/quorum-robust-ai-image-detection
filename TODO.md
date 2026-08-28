@@ -72,10 +72,23 @@ generators with no error saying so. Verified on the remote — 130 shards,
       `adrieljss/quorum-cache`; **revoke the write token pasted in chat** and
       issue a fresh one (`hf auth login`). It has org admin rights.
 
-### Handed to Michael or Valentino
-- [ ] **WildFake DALL·E Advanced** — ModelScope, manual. Commands in
-      `docs/HANDOVER.md` §7. `--label 1 --assign-split test_organizer` are
-      not optional.
+### WildFake — **DONE 28 Aug**, by Adriel
+- [x] `scripts/fetch_wildfake.py` — reads the 25.6 GB `DALLE.zip` central
+      directory over HTTP range requests and inflates only
+      `DALLE/Advanced/DALLE3`. ~1.5 GB instead of 25.6 GB, no `modelscope` SDK.
+- [x] **The subset is 3,719 images, not 8,843.** WildFake files it as 8,843
+      entries; 1,808 basenames repeat with an identical CRC32 and size, so the
+      brief's figure is a FILE count. Docs corrected in `DATA_LAYOUT.md`,
+      `HANDOVER.md`, `README.md`.
+- [x] Both embed passes + `build_manifest.py`; verified
+      `{0: 75000, 1: 55785}`, split `test_organizer`, 8,719 unique images
+- [x] `push_cache.py` — 1.48 GB on the remote
+- [x] `eval_grid.py --source organizer_val` — general **0.9837 / 0.9729**,
+      drop 0.0108. First externally-comparable number the project has had.
+- [x] Fixed: `eval_grid.py` wrote every source to the same `robustness.md`, so
+      the organizer run silently overwrote the So-Fake-OOD deliverable. Output
+      path is now per-source, and the blur caveat only prints where it is true
+      (face FALLS under blur on organizer_val: 0.9520 -> 0.8887).
 
 ---
 
@@ -239,14 +252,16 @@ not the training.
 - [ ] Fold the chained result into `docs/robustness.md` once the 200-image run
       lands. It is the only number in the submission that measures what actually
       happens to images in the wild
-- [ ] Reference number on `organizer_val` — **blocked, and hard-blocked.**
-      COCO val2017 is 100% real, so the organizer set has no positive class and
-      **no AUROC can be computed at all** until WildFake DALL·E Advanced lands.
-      This is the only externally-comparable number we get. Chase it.
+- [x] Reference number on `organizer_val` — **DONE 28 Aug.** general
+      **0.9837 clean / 0.9729 worst**, drop 0.0108, over 8,719 images.
+      `docs/robustness-organizer_val.md`. Two caveats belong with it: the
+      shipped `max` is *worse* here than general alone (0.9541/0.8841),
+      because there are no tampered images for the tampered branch to catch;
+      and DALL·E 3 is an easier target than So-Fake-OOD, so quote 0.9170 as
+      the headline, not this.
 - [ ] Per-content-bucket AUROC — wild variance means we are partly reading
       semantics, and saying so is a strength
-- [ ] Re-run the grid once WildFake lands; `organizer_val` is the only
-      externally-comparable number and it is still unscoreable
+- [x] Re-run the grid once WildFake lands — done; see above
 
 ---
 
