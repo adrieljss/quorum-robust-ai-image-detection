@@ -8,10 +8,10 @@ AUROC per branch under each degradation setting. The clean-to-worst **drop** is 
 
 ```
           clean  worst worst_variant   drop
-general  0.9221 0.8981      noise002 0.0239
+general  0.9246 0.9014      noise002 0.0231
 face     0.9421 0.9168       noise01 0.0252
-spectral 0.7365 0.5596        blur10 0.1769
-tampered 0.9528 0.8962       noise01 0.0566
+spectral 0.6739 0.5471       noise01 0.1268
+tampered 0.9512 0.8925       noise01 0.0586
 ```
 
 > **Read the `face` row with care.** Its AUC *rises* under blur (0.9382 clean ->
@@ -27,20 +27,21 @@ tampered 0.9528 0.8962       noise01 0.0566
 
 ```
            general   face  spectral  tampered
-blur05      0.9218 0.8913    0.7091    0.9516
-blur10      0.9198 0.9087    0.5596    0.9473
-blur20      0.9138 0.9256    0.5933    0.9328
-crop08      0.9156 0.8994    0.6224    0.9282
-jitter02    0.9186 0.8853    0.7278    0.9417
-jpeg30      0.9170 0.8940    0.6579    0.9628
-jpeg50      0.9238 0.9090    0.6966    0.9713
-jpeg70      0.9221 0.9033    0.7278    0.9677
-jpeg90      0.9203 0.8905    0.7563    0.9489
-noise002    0.8981 0.8839    0.6933    0.9237
-noise005    0.8993 0.8744    0.6453    0.9085
-noise01     0.8994 0.8620    0.5885    0.8945
-resize025   0.9161 0.9066    0.5751    0.9469
-resize05    0.9215 0.9174    0.6027    0.9493
+clean       0.9246 0.9421    0.6739    0.9512
+blur05      0.9245 0.9395    0.6528    0.9512
+blur10      0.9230 0.9448    0.5483    0.9470
+blur20      0.9173 0.9512    0.5975    0.9325
+crop08      0.9212 0.9405    0.5871    0.9278
+jitter02    0.9205 0.9369    0.6657    0.9410
+jpeg30      0.9165 0.9356    0.6487    0.9626
+jpeg50      0.9273 0.9463    0.6680    0.9713
+jpeg70      0.9232 0.9429    0.6934    0.9670
+jpeg90      0.9225 0.9374    0.7008    0.9486
+noise002    0.9014 0.9324    0.6330    0.9226
+noise005    0.9019 0.9254    0.5902    0.9073
+noise01     0.9023 0.9168    0.5471    0.8925
+resize025   0.9180 0.9441    0.5877    0.9468
+resize05    0.9243 0.9469    0.6035    0.9491
 ```
 
 ![Robustness grid](figures/robustness.png)
@@ -61,9 +62,9 @@ AUROC above is threshold-free and says nothing about whether the shipped cut wor
 
 ```
                FULL avg  FULL worst  so_fake_ood clean  so_fake_ood worst
-general alone    0.6851      0.6542             0.9170             0.8848
-max(gen,tamp)    0.8597      0.8210             0.9114             0.8771
-fusion LR        0.8511      0.8150             0.9053             0.8796
+general alone    0.6851      0.6542             0.9170             0.8849
+max(gen,tamp)    0.8588      0.8199             0.9115             0.8772
+fusion LR        0.8500      0.8137             0.9050             0.8795
 ```
 
 The task is **disjunctive** -- "AI touched this" = fully-synthetic OR locally edited -- so `max` beats a linear combiner in log-odds space, which is forced into one additive trade-off across two complementary detectors. `predict.py` ships `max` on this measurement.
