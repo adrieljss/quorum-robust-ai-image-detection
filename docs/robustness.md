@@ -44,6 +44,18 @@ resize025   0.9105 0.9441    0.5877    0.9488
 resize05    0.9168 0.9469    0.6037    0.9507
 ```
 
+![Robustness grid](figures/robustness.png)
+
+_Same numbers as a heatmap, rows sorted by mean drop from clean. Regenerate with `python scripts/make_figures.py robustness`._
+
+## Where the decision is made
+
+AUROC above is threshold-free and says nothing about whether the shipped cut works. It did not: 0.5 was the sigmoid default and flagged a quarter of COCO photographs as AI. `predict.py` now cuts at an operating point picked on `calib_ood`.
+
+![Threshold sweep](figures/threshold.png)
+
+![Score separation](figures/separation.png)
+
 ## Combiners, on the full task
 
 `FULL` pools So-Fake-OOD (fully-synthetic) with sid_tampered_eval (locally edited) against the same real pool. The general probe is *inverted* on tampering, so a single-branch score that looks strong on one column collapses on the other.
@@ -55,4 +67,6 @@ max(gen,tamp)    0.8597      0.8210             0.9114             0.8771
 fusion LR        0.8511      0.8150             0.9053             0.8796
 ```
 
-The task is **disjunctive** -- "AI touched this" = fully-synthetic OR locally edited -- so `max` beats a linear combiner in log-odds space, which is forced into one additive trade-off across two complementary detectors. `predict.py` ships `max` on this measurement. Fitted on a *generator-disjoint* calibration slice, fusion does win (`docs/HANDOVER-MODELS.md` section 4); building that slice is the open data task.
+The task is **disjunctive** -- "AI touched this" = fully-synthetic OR locally edited -- so `max` beats a linear combiner in log-odds space, which is forced into one additive trade-off across two complementary detectors. `predict.py` ships `max` on this measurement.
+
+The generator-disjoint calibration slice that was once the open data task now exists (`calib_ood`, carved by generator FAMILY) and **fusion still does not win**: it reaches parity on the headline only by scoring 0.38 on tampering, or handles tampering only by dropping ~6 points on the headline. `HANDOVER.md` sections 5c and 5e carry both fit sets.

@@ -40,6 +40,13 @@ ViT-L/14 probe for fully-synthetic images and a separate probe for local
 tampering, combined with `max`. Contract verified on nested directories,
 grayscale and RGBA inputs, and all five supported extensions.
 
+**0.5 is the operating point, not a default.** The score is shifted so that
+threshold sits where accuracy peaks on a generator-family-disjoint calibration
+set (`scripts/pick_threshold.py`). The shift is monotone, so AUROC is unchanged;
+it buys precision 0.766 → 0.854 and cuts false positives on real photography
+roughly threefold, at the cost of recall. Both halves are in `predict.py`'s
+docstring — quote them together.
+
 ## Getting started (team)
 
 ```bash
@@ -98,5 +105,8 @@ python scripts/try_face.py photo.jpg other.png --save-crops out/
 | Data | complete — 330,851 rows, 36,686 images, 6 sources, assertions A–F green |
 | Branches | general, tampered, face, spectral features cached; `detectors/spectral.py` not yet written |
 | Combiner | `max(general, tampered)`, chosen on measurement; `fusion.py` built and reproducible |
-| Eval | `docs/robustness.md`; `organizer_val` unscoreable until WildFake lands (no positive class) |
-| Next | demo backend/frontend, error-analysis note, WildFake DALL·E Advanced |
+| Threshold | 0.766 on the raw score, picked on `calib_ood`, shipped as a shift so 0.5 is the cut |
+| Eval | `docs/robustness.md` (15 settings); composed pairs measured separately at ~−0.013 AUROC |
+| Held out | `organizer_val` unscoreable until WildFake lands (no positive class) |
+| Cost | 769 trained params on a frozen 304M backbone — 3.5 KB on disk, 0.32 µs/image once embedded |
+| Next | demo backend/frontend, error-analysis note, patch-level scoring (fixes false positives *and* gives explainability) |

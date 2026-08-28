@@ -2,16 +2,39 @@
 
     python predict.py --input-dir path/to/images --output preds.json
 
-`pred` is P(AI-generated) in [0,1], raw and uncalibrated. Two fields, no more --
-the demo's richer schema stays in the demo.
+`pred` is P(AI-generated) in [0,1]. Two fields, no more -- the demo's richer
+schema stays in the demo.
+
+The score is shifted so that **0.5 is the operating point**. It was not before:
+0.5 is the sigmoid's default, nobody chose it, and on held-out test_ood it cost
+0.09 precision and flagged 25.5% of COCO photographs as AI-generated. The shift
+is monotone, so AUROC is identical (0.8997) and rank-based grading sees no
+change; only a threshold-based read of `pred` moves.
+
+It is a TRADE, not a free win, and both halves belong here:
+
+    test_ood clean          acc    prec  recall      F1   COCO FP  tamp rec
+      0.500               0.806   0.766   0.882   0.820     25.5%     0.877
+      0.766               0.818   0.854   0.767   0.808      8.6%     0.742
+    test_ood all 15 var
+      0.500               0.801   0.776   0.847   0.810     29.4%
+      0.766               0.798   0.864   0.707   0.778     12.2%
+
+Precision +0.09 and false positives on real photography cut ~3x. Paid for in
+recall (-0.11 clean, -0.14 pooled) and F1 (-0.012, -0.032). Accuracy improves on
+clean and is a wash pooled. **0.5 is very nearly F1-optimal** -- the F1 argmax is
+0.506 -- so if this is ever scored on F1, set OPERATING_POINT = 0.5 and the shift
+becomes a no-op.
+
+Chosen anyway: at a realistic base rate most uploads are genuine, so a false
+accusation is the expensive error, and F1 weights a missed fake and a libelled
+photograph equally. That premise is the decision -- argue with it, not the code.
 
 ponytail: fusion.py exists and this still does not call it, deliberately.
 Measured on so_fake_ood, clean / worst: raw max 0.9042 / 0.8634, fusion
-0.8587 / 0.8340. Calibrating first makes it worse again (ECE 0.048 -> 0.103),
-because sid_calib shares generators with train and every branch is saturated
-there, so Platt fits an extreme slope that manufactures over-confidence on new
-generators. Revisit once a generator-disjoint calibration source exists --
-docs/HANDOVER-MODELS.md has the numbers and the fix.
+0.8587 / 0.8340. The generator-disjoint calibration source that was missing now
+exists (`calib_ood`), and fusion STILL does not win -- see HANDOVER.md 5c/5e for
+the two fit sets and why `max` beats a learned combiner on a disjunctive task.
 """
 import argparse
 import json
@@ -25,11 +48,36 @@ from quorum.embed import Embedder
 
 EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 BATCH = 64
+# Accuracy-optimal cut on calib_ood (family-disjoint from test_ood, 30,660 rows,
+# all 15 variants). Accuracy is flat over 0.46-0.77, so the plateau's high end is
+# taken: every extra positive there is a real photograph accused of being fake.
+# NOT transferable -- re-run scripts/pick_threshold.py after retraining a probe.
+OPERATING_POINT = 0.7660
+SHIFT = float(np.log(OPERATING_POINT / (1 - OPERATING_POINT)))
 
 
 def _probe(path):
     d = np.load(path)
     return d["w"].ravel(), d["b"][0]
+
+
+def load_probes():
+    return [_probe(MODEL)] + ([_probe(MODEL_TAMPERED)] if MODEL_TAMPERED.exists() else [])
+
+
+def score_embeddings(v, probes=None) -> np.ndarray:
+    """(n, 768) CLIP embeddings -> P(AI). THE definition of the shipped score.
+
+    Every evaluation must call this rather than re-deriving it. scripts/ has
+    twice grown a private copy that silently drifted -- one used Platt-calibrated
+    branches, which is a different model, and reported it as the shipped one.
+    """
+    probes = load_probes() if probes is None else probes
+    # max in LOGIT space, then one sigmoid. Identical to max-of-sigmoids because
+    # sigmoid is monotone, but nothing saturates to exactly 0 or 1 first, so the
+    # shift cannot hit an infinity.
+    z = np.max([v @ w + b for w, b in probes], axis=0)
+    return 1 / (1 + np.exp(-(z - SHIFT)))
 
 
 def score_all(paths) -> np.ndarray:
@@ -41,12 +89,11 @@ def score_all(paths) -> np.ndarray:
     which scores tampered images BELOW real ones (AUC 0.37) because a
     locally-edited photo is globally authentic.
     """
-    probes = [_probe(MODEL)] + ([_probe(MODEL_TAMPERED)] if MODEL_TAMPERED.exists() else [])
+    probes = load_probes()
     emb, out = Embedder(), []
     for i in range(0, len(paths), BATCH):
         imgs = [Image.open(p).convert("RGB") for p in paths[i:i + BATCH]]
-        v = emb.embed_batch(imgs)
-        out.append(np.max([1 / (1 + np.exp(-(v @ w + b))) for w, b in probes], axis=0))
+        out.append(score_embeddings(emb.embed_batch(imgs), probes))
         print(f"  {min(i + BATCH, len(paths))}/{len(paths)}")
     return np.concatenate(out)
 

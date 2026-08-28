@@ -322,9 +322,9 @@ On the full task — So-Fake-OOD (fully synthetic) pooled with `sid_tampered_eva
 
 ```
 combiner          FULL avg   FULL worst   ood clean   ood worst
-general alone       0.7331       0.7036      0.9124      0.8798
-max(gen,tamp)       0.8728       0.8414      0.9028      0.8589
-fusion LR           0.8440       0.8175      0.8583      0.8337
+general alone       0.6851       0.6542      0.9170      0.8848
+max(gen,tamp)       0.8597       0.8210      0.9114      0.8771
+fusion LR           0.8511       0.8150      0.9053      0.8796
 ```
 
 The `fusion LR` row is the **`calib+tampered`** fit — deliberately the version
@@ -332,6 +332,14 @@ that can see tampering, because pitting `max` against the `calib`-only fit here
 would be rigging it: that fit scores 0.38 on half the task. `max` beats fusion
 even when fusion is given its best shot at the pooled problem. See §5c for the
 two fit sets and why the choice has to be stated every time.
+
+**The margin is narrower than this section used to claim.** The earlier table
+(general 0.7331 / max 0.8728 / fusion 0.8440) predates the cross-split leak fix
+and the `calib_ood` carve, and it put `max` +0.0288 ahead. Held out properly it
+is **+0.0086** — still a win, still on the right side of the disjunctive
+argument, but no longer a comfortable one. Regenerate with
+`python scripts/eval_grid.py`; `docs/robustness.md` carries the live table and
+these two must not be allowed to disagree again.
 
 The task is **disjunctive**: "AI touched this" = fully synthetic **OR** locally
 edited, and the general probe is *inverted* on tampering (0.37). A linear model in
@@ -422,13 +430,168 @@ would have scored the calibration slice as if it were held out. Both now filter
   general probes; `--save-crops` writes the aligned 224px crop so alignment can
   be eyeballed. Alignment broke silently once in this project and a mirrored
   face still scores confidently, so this is the check for it.
+- **`scripts/try_grid.py`** — one image through all 15 variants, or `--chain`
+  for all 196 composed pairs. The robustness claim on something you can look at
+  rather than averaged over 4,198 images. Good demo material.
+- **`scripts/chain_eval.py`** — the same 196 pairs across a held-out sample,
+  with accuracy and precision beside AUROC. Re-downloads one So-Fake-OOD shard
+  because pixels are not on disk; keeps only `split == test_ood`. Prints the
+  most confident errors by `image_id` for Stage 5. Use `--n 100` or higher —
+  at `--n 25` the AUROC standard error is ~0.04, wider than the whole spread of
+  the worst-chain table.
+- **`scripts/pick_threshold.py`** — picks `predict.py`'s operating point on
+  `calib_ood` and prints what it does to every held-out set. Re-run after
+  retraining either probe; the constant is not transferable.
 
-### 6. Doc corrections
+**`predict.py` now owns the score definition.** `score_embeddings()` is the one
+implementation; `score_all` calls it and `chain_eval` imports it. Three times in
+this project a script grew a private copy of "the shipped score" that quietly
+diverged — one of them Platt-calibrated the branches and reported the result as
+shipped. Never re-derive it.
+
+### 6. Gave `predict.py` an operating point — it never had one
+
+Every number in this project was AUROC, which is threshold-free. Nobody had ever
+checked whether the shipped cut works, and `predict.py` was cutting at 0.5 —
+the sigmoid's default, chosen by nobody. On held-out `test_ood`:
+
+```
+test_ood clean          acc    prec  recall      F1   COCO FP  tamp rec
+  0.500               0.806   0.766   0.882   0.820     25.5%     0.877
+  0.766               0.818   0.854   0.767   0.808      8.6%     0.742
+test_ood all 15 var
+  0.500               0.801   0.776   0.847   0.810     29.4%
+  0.766               0.798   0.864   0.707   0.778     12.2%
+```
+
+**This is a trade, not a free win.** Precision +0.09 and false positives on real
+photography cut ~3x, paid for in recall (−0.11 clean, −0.14 pooled) and F1
+(−0.012, −0.032). Accuracy improves on clean and is a wash pooled. And **0.5 was
+already almost exactly F1-optimal** — the F1 argmax is 0.506 — so on an F1-scored
+benchmark the old default wins and `OPERATING_POINT = 0.5` makes the shift a
+no-op. One constant, reverting is one line.
+
+**We were flagging a quarter of COCO photographs as AI-generated.** At a
+realistic 1% base rate that is ~3% precision in production: 97 of every 100
+flags a real photo. AUROC never showed it because AUROC cannot see a threshold.
+
+`scripts/pick_threshold.py` picks the cut on `calib_ood` (all 15 variants,
+30,660 rows, family-disjoint from `test_ood`). Accuracy is *flat* over 0.46–0.77,
+so argmax picks noise; the rule takes the plateau's high end, because on a tie
+every extra positive is a real photograph accused of being fake. That tiebreak
+was fixed before looking at `test_ood`.
+
+`predict.py` shifts the score so **0.5 is that operating point**, rather than
+exporting a threshold — the deliverable is a score, and a monotone shift leaves
+AUROC at 0.8997 exactly, so rank-based grading sees nothing change. Re-run
+`pick_threshold.py` after retraining either probe; the constant is not
+transferable.
+
+Bought with recall (0.882 → 0.767, tampered 0.877 → 0.742). Deliberate: at any
+realistic base rate a false accusation is the expensive error. **Whether that is
+the right trade is a team call, not mine** — the numbers to argue with are above.
+
+Two things this surfaced and did not fix, both in §5g.
+
+### 7. Measured composed degradation — the grid does not
+
+The official grid, our cache, and every number in `robustness.md` are **single
+transforms**. Real images arrive chained: the upload resizes, the platform
+recompresses, someone screenshots the result. Nothing in the eval set sees that.
+
+All 196 ordered pairs (14 x 14, including the diagonal — double JPEG is the most
+common thing that happens to an image online) cost **about 0.013 AUROC** against
+clean, and about 0.012 against single transforms. Degradation does not compound:
+`blur20` alone and `noise002` alone are each worse than either, and chaining them
+lands only slightly below the worse of the two.
+
+On a single confident image, none of the 196 chains moved the verdict — worst
+was 0.8196 against a clean 0.9313. The worst chains all pair blur or resize with
+noise, which is mechanically sensible: blur strips the high-frequency generator
+texture, noise fills that band with garbage. Same evidence attacked from both
+ends. **That is the direction an evader would take.**
+
+Provisional at n=50 (AUROC SE ~0.04). A 200-image run is the open item.
+
+### 8. Cost profile, measured — and how to state it honestly
+
+```
+CLIP image tower  303,966,208 params   <- runs on every image
+trained head              769 params   <- 3,566 bytes on disk
+72.5 img/s @ 1024px, 1.6 GB VRAM, 13.8 ms/image   (backbone)
+                                    0.32 us/image  (our head)
+```
+
+**Do not claim a "sub-1000 parameter detector."** We run a 304M ViT on every
+image; the head is 0.002% of the compute, and the first person to ask about
+inference cost will find that out. The defensible claims are:
+
+- **769 trained parameters on a backbone you already run.** Where CLIP embeddings
+  already exist — search, recommendation, moderation — detection costs 0.32 us
+  and a 3.5 KB file. Not cheap: free.
+- **The marginal cost of a new branch is zero inference.** All four branches
+  share one forward pass; face, tampered and spectral add 769 params each and no
+  extra compute.
+- **A new generator costs seconds, not GPU-hours.** Embed a few hundred examples,
+  refit a linear probe, swap a 3.5 KB file. No fine-tuning, no backbone rollout.
+
+State the constraint alongside the win, because it is the same fact: a frozen
+backbone cannot learn features CLIP does not already encode. That is exactly why
+the tampered probe cannot generalise "untampered" to new photo distributions
+(§5g) and why more data and more capacity have now failed three times.
+
+### 9. Doc corrections
 
 The face coverage figures in §5a were wrong (`noise01` loses 15–18%, not 77%),
 the `face_px` range was wrong (64–612, not 64–181), and `robustness.md` was
 selling the blur AUC rise as robustness when `HANDOVER-MODELS.md` §8 shows it is
 a shortcut. All three are corrected in place. Kacey caught the first two.
+
+---
+
+## 5g. Open: the tampered branch owns our false positives — Adriel
+
+Found while placing the threshold, not fixed. **The single biggest remaining
+lever on accuracy and precision**, and a decision for the team rather than one
+person.
+
+`train_tampered()` uses only `sid_train` reals as negatives, so its notion of
+"untampered" is SID_Set-shaped. On real photography it has never seen:
+
+```
+tampered probe on REAL so_fake_ood images: median 0.0939, 14.8% above 0.5
+tampered probe on REAL COCO images:        median 0.3050, 33.0% above 0.5
+```
+
+`max()` means any one branch firing flags the image, so the combiner inherits
+the *worst* branch's false-positive rate by construction. With Platt-calibrated
+branches at a tuned cut, the cost is stark:
+
+```
+scorer                     acc    prec  recall  COCO FP  tampered recall
+general alone            0.835   0.851   0.813     1.1%            0.052
+max(gen, tamp) SHIPPED   0.819   0.840   0.788    10.5%            0.772
+```
+
+At 1% AI prevalence that is **42.8% production precision for `general` alone
+against 7.0% for `max`**. Tampering detection costs us 6x precision. General
+alone is not a free alternative — it catches 5% of tampered images, i.e. none.
+
+**The obvious fix does not work.** Adding a second real distribution to the
+probe's negatives (So-Fake-OOD reals via `calib_ood`) made it much better at its
+own task — AUROC 0.9528 → 0.9884, tampered recall 0.772 → 0.949 — and much worse
+on a third distribution: COCO false positives 13.6% → **53.5%**. More real data
+sharpens it on distributions it has seen and teaches it nothing about new ones.
+Same shape as the flat learning curve and the three MLP losses: **capacity and
+data are not the lever on this project.**
+
+That is the argument for **patch-level self-consistency (multi-crop CLIP)**,
+already Tier 1 on Kacey's list and `PIPELINE.md` §4.5 on Albert's, unstarted on
+both. Comparing patches against each other never requires knowing what real
+photography looks like globally — precisely the generalisation measured absent
+above. Zero new parameters, same frozen CLIP, 9x forwards on one pass.
+
+Reproduce: `scripts/pick_threshold.py` for the threshold table.
 
 ---
 

@@ -153,6 +153,15 @@ def main(source, do_comb):
         "\n## Per-branch summary\n", fence, summary.to_string(float_format="%.4f"), fence,
         BLUR_CAVEAT,
         "\n## Full grid\n", fence, df.to_string(float_format="%.4f"), fence,
+        "\n![Robustness grid](figures/robustness.png)\n\n_Same numbers as a "
+        "heatmap, rows sorted by mean drop from clean. Regenerate with "
+        "`python scripts/make_figures.py robustness`._\n",
+        "\n## Where the decision is made\n\nAUROC above is threshold-free and "
+        "says nothing about whether the shipped cut works. It did not: 0.5 was "
+        "the sigmoid default and flagged a quarter of COCO photographs as AI. "
+        "`predict.py` now cuts at an operating point picked on `calib_ood`.\n\n"
+        "![Threshold sweep](figures/threshold.png)\n\n"
+        "![Score separation](figures/separation.png)\n",
     ]
     if comb is not None:
         parts += [
@@ -165,9 +174,12 @@ def main(source, do_comb):
             "OR locally edited -- so `max` beats a linear combiner in log-odds "
             "space, which is forced into one additive trade-off across two "
             "complementary detectors. `predict.py` ships `max` on this "
-            "measurement. Fitted on a *generator-disjoint* calibration slice, "
-            "fusion does win (`docs/HANDOVER-MODELS.md` section 4); building that "
-            "slice is the open data task.\n",
+            "measurement.\n\nThe generator-disjoint calibration slice that was "
+            "once the open data task now exists (`calib_ood`, carved by generator "
+            "FAMILY) and **fusion still does not win**: it reaches parity on the "
+            "headline only by scoring 0.38 on tampering, or handles tampering only "
+            "by dropping ~6 points on the headline. `HANDOVER.md` sections 5c and "
+            "5e carry both fit sets.\n",
         ]
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("".join(parts), encoding="utf-8")
