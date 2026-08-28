@@ -289,10 +289,31 @@ ev   = R.split == "test_ood"         # report here, never fit
 visible everywhere without re-embedding anything.
 
 **What it did and did not fix.** Fusion's deficit against the general probe went
-from −0.0112 clean to −0.0018 — the mechanism was real and the carve closed 85%
+from −0.0112 clean to −0.0022 — the mechanism was real and the carve closed 80%
 of it. But fusion reaches *parity*, not a win. Kacey measured +0.0042 with a
 random generator split; under the stricter family-disjoint carve that gain does
 not survive. **`predict.py` stays on `max`** — see §5e.
+
+**And parity is not free — read this before quoting the number.** Fusion has two
+fit sets and they are different models. I originally reported the `calib`-only
+number in prose while `__main__` shipped the `calib+tampered` one, which is a
+contradiction Kacey caught and fixed in `--fit`:
+
+```
+fit on            ood clean  ood worst  tampered
+general alone        0.9170     0.8848    0.3698
+calib                0.9148     0.8833    0.3806   <- default, shipped
+calib+tampered       0.8526     0.8288    0.8483
+```
+
+The parity configuration buys parity by becoming the general probe: its
+`cal_tampered` weight is +0.100, near zero, and it scores 0.3806 on tampered
+against general's 0.3698. **Fusion can match general on the headline OR detect
+tampering. Not both.** Quoting −0.0022 without the 0.3806 misrepresents the
+model, so `python -m quorum.fusion` now prints both rows whichever you pick.
+
+This is the strongest single input to the Stage 5 error-analysis note, and it is
+also the argument for `max`: `max` gets both columns, a linear combiner gets one.
 
 ### 5e. Why `max` and not a learned combiner
 
@@ -305,6 +326,12 @@ general alone       0.7331       0.7036      0.9124      0.8798
 max(gen,tamp)       0.8728       0.8414      0.9028      0.8589
 fusion LR           0.8440       0.8175      0.8583      0.8337
 ```
+
+The `fusion LR` row is the **`calib+tampered`** fit — deliberately the version
+that can see tampering, because pitting `max` against the `calib`-only fit here
+would be rigging it: that fit scores 0.38 on half the task. `max` beats fusion
+even when fusion is given its best shot at the pooled problem. See §5c for the
+two fit sets and why the choice has to be stated every time.
 
 The task is **disjunctive**: "AI touched this" = fully synthetic **OR** locally
 edited, and the general probe is *inverted* on tampering (0.37). A linear model in
@@ -355,7 +382,8 @@ the demo** — every confidence number a judge sees is now ~5x better calibrated
 
 Carved by generator **family**, not generator, which is stricter than the
 in-memory experiment it replaces. Under that stricter test fusion reaches parity
-with the general probe rather than beating it, so `predict.py` keeps `max()`.
+with the general probe rather than beating it, so `predict.py` keeps `max()` —
+and only at the cost of not detecting tampering at all (§5c).
 
 ### 3. Established *why* `max` beats a learned combiner
 

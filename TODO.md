@@ -151,9 +151,24 @@ spectral          0.6789            0.0774            0.0519     1.5x  <- contro
 
 Kacey's mechanism is confirmed — the saturated branches improve ~5x, the branch
 that never aced its calibration set barely moves. Fusion's deficit against
-general narrowed from -0.0112 clean to **-0.0018**, i.e. parity. The +0.0042 from
+general narrowed from -0.0112 clean to **-0.0022**, i.e. parity. The +0.0042 from
 the random *generator* split does not survive a family-disjoint one; splitting
 model siblings was flattering the result.
+
+**Parity has a price tag, and quoting it without the price is wrong.** Fusion has
+two fit sets and they are different models — I reported one in prose while
+`__main__` shipped the other. Kacey caught it and added `--fit`:
+
+```
+fit on            ood clean  ood worst  tampered
+general alone        0.9170     0.8848    0.3698
+calib                0.9148     0.8833    0.3806   <- default, shipped
+calib+tampered       0.8526     0.8288    0.8483
+```
+
+The parity model reaches parity by becoming the general probe (`cal_tampered`
+weight +0.100). Fusion can match general on the headline **or** detect tampering,
+never both. `python -m quorum.fusion` now prints both rows either way.
 
 So `predict.py` stays on `max()` on its own merits: the task is disjunctive and a
 linear combiner loses on the pooled full task (0.8440 vs 0.8728). `HANDOVER.md`

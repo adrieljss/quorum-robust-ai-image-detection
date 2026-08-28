@@ -110,6 +110,10 @@ def combiners(source):
     ta, tb = half(tam, "a", bit=1), half(tam, "b", bit=1)
     cals = fit_calibrators(cal, a, tam[ta])
 
+    # The calib+tampered fit ON PURPOSE, i.e. fusion.py --fit calib+tampered.
+    # The calib-only fit scores 0.38 on tampered, so pitting max against it on a
+    # pooled table that is half tampered would be rigging the comparison. Give
+    # fusion its best shot at the full task; max still wins. HANDOVER.md 5c/5e.
     rows = pd.concat([cal[b], tam[tb]], ignore_index=True)
     clf = LogisticRegression(max_iter=2000).fit(assemble(rows, cals), rows.label.values)
 
