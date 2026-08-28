@@ -218,6 +218,15 @@ def auc_by_variant(p, df):
 
 
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--fit", dest="a_fit", default="calib",
+                    choices=["calib", "calib+tampered"],
+                    help="rows the fusion LR is fitted on. 'calib+tampered' buys "
+                         "tampered coverage and costs ~6 points on so_fake_ood. "
+                         "Both are printed either way; this only picks what is saved.")
+    a_fit = ap.parse_args().a_fit
+
     M = fit_branches()
 
     # One pass over the source, then split. calib_ood and test_ood are disjoint by
@@ -234,23 +243,42 @@ if __name__ == "__main__":
     ta, tb = half(tam, "a", bit=1), half(tam, "b", bit=1)
     cals = fit_calibrators(cal, a, tam[ta])
 
-    # calib alone has no tampered images, so fusion fitted there never sees the
-    # general probe fail and leaves cal_tampered near zero. These rows are that
-    # failure mode, held out of the probe that fixes it.
-    rows = pd.concat([cal[b], tam[tb]], ignore_index=True)
-    Xb, yb = assemble(rows, cals), rows.label.values
-    assert Xb.shape[1] == len(COLUMNS) == 14, Xb.shape
-    assert ((Xb >= 0) & (Xb <= 1)).all(), "a fusion feature left [0,1]"
-
-    clf = LogisticRegression(max_iter=2000).fit(Xb, yb)
-    save(clf, cals, M["px_stats"])
-    print(f"fusion: calib_a {a.sum():,} + tampered {ta.sum():,} -> calibrators, "
-          f"calib_b {b.sum():,} + tampered {tb.sum():,} -> fusion")
-
+    # calib_ood has no tampered images, so fusion fitted on it alone never sees the
+    # general probe fail and leaves cal_tampered near zero. Adding the held-out
+    # tampered rows fixes that and costs ~6 points on so_fake_ood -- a real trade,
+    # so it is a flag and BOTH numbers print either way. Reporting one without the
+    # other misrepresents the model whichever one you pick.
+    fits = {"calib": cal[b],
+            "calib+tampered": pd.concat([cal[b], tam[tb]], ignore_index=True)}
     ood = scored[scored.split == EVAL_SPLIT].reset_index(drop=True)
     Xo = assemble(ood, cals)
-    p = clf.predict_proba(Xo)[:, 1]
+    # tampered_eval brings no negatives of its own; borrow the eval reals, same
+    # pairing as eval_grid.tampered_grid.
+    both = pd.concat([raw_scores("sid_tampered_eval", M),
+                      ood[ood.label.values == 0]], ignore_index=True)
+    Xt, yt = assemble(both, cals), both.label.values
 
+    models = {}
+    for name, rows in fits.items():
+        Xb, yb = assemble(rows, cals), rows.label.values
+        assert Xb.shape[1] == len(COLUMNS) == 14, Xb.shape
+        assert ((Xb >= 0) & (Xb <= 1)).all(), "a fusion feature left [0,1]"
+        models[name] = (LogisticRegression(max_iter=2000).fit(Xb, yb), len(rows))
+
+    clf, n_fit = models[a_fit]
+    save(clf, cals, M["px_stats"])
+    print(f"fusion: calib_a {a.sum():,} + tampered {ta.sum():,} -> calibrators")
+    print(f"saved --fit {a_fit} ({n_fit:,} rows). The trade, both ways:\n")
+    gen_c = auc_by_variant(platt(ood.general.values, *cals["general"]), ood)
+    print(f"  {'fit on':16s} {'ood clean':>10s} {'ood worst':>10s} {'tampered':>9s}")
+    print(f"  {'general alone':16s} {gen_c['clean']:10.4f} {gen_c.min():10.4f} "
+          f"{roc_auc_score(yt, platt(both.general.values, *cals['general'])):9.4f}")
+    for name, (m, _) in models.items():
+        av = auc_by_variant(m.predict_proba(Xo)[:, 1], ood)
+        mark = " <- saved" if name == a_fit else ""
+        print(f"  {name:16s} {av['clean']:10.4f} {av.min():10.4f} "
+              f"{roc_auc_score(yt, m.predict_proba(Xt)[:, 1]):9.4f}{mark}")
+    p = clf.predict_proba(Xo)[:, 1]
     fus = auc_by_variant(p, ood)
     singles = {n: auc_by_variant(platt(ood[n].fillna(0.0).values, *cals[n]), ood)
                for n in ("general", "spectral")}
@@ -270,16 +298,11 @@ if __name__ == "__main__":
     print(f"general  clean {g['clean']:.4f}  worst {g.min():.4f} ({g.idxmin()})"
           f"  drop {g['clean'] - g.min():.4f}")
 
-    # The case a single general probe cannot do at all: tampered vs real, where
-    # it scores BELOW chance. sid_tampered_eval has no negatives of its own, so
-    # borrow the eval source's reals -- same pairing as eval_grid.tampered_grid.
-    te = raw_scores("sid_tampered_eval", M)
-    both = pd.concat([te, ood[ood.label.values == 0]], ignore_index=True)
-    y = both.label.values
-    pb = clf.predict_proba(assemble(both, cals))[:, 1]
-    print(f"\ntampered_eval vs reals   fusion {roc_auc_score(y, pb):.4f}   "
-          f"general {roc_auc_score(y, platt(both.general.values, *cals['general'])):.4f}   "
-          f"tampered {roc_auc_score(y, platt(both.tampered.values, *cals['tampered'])):.4f}")
+    # The case a single general probe cannot do at all: tampered vs real, where it
+    # scores BELOW chance. Population built above; `both`/`yt` are reused here.
+    print(f"\ntampered_eval vs reals   fusion {roc_auc_score(yt, clf.predict_proba(Xt)[:, 1]):.4f}   "
+          f"general {roc_auc_score(yt, platt(both.general.values, *cals['general'])):.4f}   "
+          f"tampered {roc_auc_score(yt, platt(both.tampered.values, *cals['tampered'])):.4f}")
 
     print("\nweights:")
     for name, w in sorted(zip(COLUMNS, clf.coef_[0]), key=lambda kv: -abs(kv[1])):
@@ -306,6 +329,6 @@ if __name__ == "__main__":
             platt(np.r_[tam.tampered.values[tb], cal.tampered.values[realb]], *cals["tampered"]),
             np.r_[np.ones(tb.sum()), np.zeros(realb.sum())]),
         "tampered_eval (unseen)": (
-            platt(both.tampered.values, *cals["tampered"]), y),
+            platt(both.tampered.values, *cals["tampered"]), yt),
     }
     print(f"\nreliability -> {plot_reliability(panels, FIGURES / 'reliability.png')}")
