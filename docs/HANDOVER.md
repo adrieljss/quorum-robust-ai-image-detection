@@ -209,10 +209,21 @@ Two measured facts that will shape your model:
   on `face_so_fake_ood`: 500 imgs -> 0.8892 clean / 0.8407 worst; all 4,128 ->
   0.8952 / 0.8620. Flat. A 769-parameter probe cannot absorb more. Spend the
   time on conditioning and fusion, not collection.
-- **The detector dies under heavy degradation** — `noise010` loses 77% of faces,
-  `resize025` and `noise005` lose 15%. Those images have no face row at all.
-  That is honest system behaviour, not a bug: at inference you do not have a
-  clean copy to detect on. Report coverage per variant alongside AUC.
+- **Degradation costs coverage, but far less than this section used to say.**
+  Measured on the full grid (`face_so_fake_ood`, 6,242 images per variant):
+  `noise01` retains **0.8396** of clean's face coverage, `noise005` 0.9696,
+  everything else ≥ 0.99. `crop08` retains **1.0650** — a centre crop enlarges
+  the subject and pushes marginal faces over the 64px floor, so it finds *more*.
+  Images with no detection have no face row at all, which is honest system
+  behaviour rather than a bug: at inference there is no clean copy to detect on.
+  Report coverage per variant alongside AUC.
+
+  The "77% of faces" this bullet carried was an artefact of a broken `retain`
+  that divided raw face counts instead of coverage ratios. Train sources hold
+  clean plus 3 *sampled* variants, so a degraded variant has ~1/14 of clean's
+  images and the count ratio reads as catastrophic failure — `sid_train`
+  `noise01` scored 0.18 that way against a true 0.85. Kacey found and fixed it;
+  `face.py` now divides coverage and carries a regression guard.
 
 **Deliverable:** `quorum/detectors/face.py` plus per-variant AUC *and* coverage.
 
@@ -542,10 +553,19 @@ the tampered probe cannot generalise "untampered" to new photo distributions
 
 ### 9. Doc corrections
 
-The face coverage figures in §5a were wrong (`noise01` loses 15–18%, not 77%),
-the `face_px` range was wrong (64–612, not 64–181), and `robustness.md` was
-selling the blur AUC rise as robustness when `HANDOVER-MODELS.md` §8 shows it is
-a shortcut. All three are corrected in place. Kacey caught the first two.
+The face coverage figures in §5a were wrong (`noise01` retains 0.84, it does not
+lose 77%), the `face_px` range was wrong (64–612, not 64–181), and
+`robustness.md` was selling the blur AUC rise as robustness when
+`HANDOVER-MODELS.md` §8 shows it is a shortcut. All three are corrected in
+place. Kacey caught the first two.
+
+**And a correction to this section.** It previously claimed all three were fixed
+when the 77% figure was still sitting in §5a — I wrote the note and not the fix.
+Kacey then found the *cause* rather than the symptom: `face.py`'s `retain`
+divided raw face counts, which is only meaningful when every variant has the
+same image count. Branch `face-coverage-fix`. If a number in these docs looks
+wrong, check whether the correction was actually applied to the number and not
+only recorded here.
 
 ---
 
