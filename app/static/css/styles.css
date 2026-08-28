@@ -90,10 +90,15 @@ h3,
   padding: 28px 24px 8px;
 }
 
+.logo {
+  width: 60px;
+  height: auto;
+}
+
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .brand-mark {

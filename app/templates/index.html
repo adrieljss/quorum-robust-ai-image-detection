@@ -19,13 +19,7 @@
     <header class="topbar">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="28" height="28">
-            <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="1.6" />
-            <circle cx="16" cy="16" r="4.5" fill="currentColor" />
-            <circle cx="16" cy="6.5" r="1.4" fill="currentColor" />
-            <circle cx="24.2" cy="20.2" r="1.4" fill="currentColor" />
-            <circle cx="7.8" cy="20.2" r="1.4" fill="currentColor" />
-          </svg>
+          <img class="logo" src="{{ url_for('static', filename='quorum-logo.png') }}" alt="" />
         </span>
         <div>
           <p class="brand-name">Quorum</p>
@@ -43,9 +37,9 @@
       <!-- ========== UPLOAD STAGE ========== -->
       <section id="upload-stage" class="stage is-active" aria-labelledby="upload-title">
         <div class="intro">
-          <h1 id="upload-title">Check if an image was generated</h1>
+          <h1 id="upload-title">Check if an image was AI generated</h1>
           <p class="lede">
-            Drop one photo or a whole batch. Quorum asks four independent models,
+            Drop one or more photos. Quorum asks four independent models,
             then shows a single, readable verdict.
           </p>
         </div>
@@ -184,7 +178,7 @@
     </main>
 
     <footer class="foot">
-      <p>Four models, one verdict. No single score decides on its own.</p>
+      
     </footer>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
