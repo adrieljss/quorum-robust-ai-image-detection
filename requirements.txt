@@ -15,3 +15,5 @@ opencv-python>=4.8
 scikit-learn
 matplotlib
 tqdm
+# lint + format, one binary. Config in pyproject.toml.
+ruff

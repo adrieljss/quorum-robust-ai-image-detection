@@ -77,7 +77,6 @@ def grid(prefix, eval_source, train_source="sid_train"):
 def tampered_grid(real_source):
     """Tampered eval has no negatives of its own -- borrow the reals from the
     eval source so every variant is scored on a matched pair."""
-    from quorum.detectors.general import train_tampered
     clf, _, _ = train_tampered()
     Xe, Re = load("sid_tampered_eval")
     Xr, Rr = held_out(*load(real_source))

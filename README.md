@@ -82,15 +82,59 @@ than from the shard. See [`docs/HANDOVER.md`](docs/HANDOVER.md) §1.
 - `data/raw/organizer_val/` is the competition validation set. Never train on it.
 - Train rows carry 4 variants per image (clean + 3 sampled); eval rows carry all 15.
 
-## Self-checks
+## Tests
 
 ```bash
-python -m quorum.degrade          # transform grid: 14 settings, 15 variants, seeded
-python -m quorum.embed            # cache format: ids, shards, shard-aware loader
-python -m quorum.calibrate        # Platt scaling + the calib_a/calib_b partition
-python -m quorum.detectors.general  # asserts no image spans two splits
-python scripts/build_manifest.py  # assertions A-F; nothing is trained until green
+python scripts/selfcheck.py         # offline, ~30s -- runs on a fresh clone
+python scripts/selfcheck.py --all   # + the checks that read data/cache, ~90s
 ```
+
+One command, one exit code. The offline set needs no embedding cache and no GPU:
+the probes it scores with (`data/models/*.npz`, 3.5KB) are tracked, the 1.2GB
+cache is not. `--all` adds the checks that can only be made against the data.
+
+| check | what fails if it breaks |
+|---|---|
+| `predict.py --self-check` | the operating point stops landing on 0.5; the shift stops being monotone; `max` quietly becomes something else; the output contract (two fields, posix paths, five extensions, nested dirs) drifts; a private copy of the scoring path in `scripts/` diverges from `score_embeddings` |
+| `quorum.degrade` | the 14-setting grid, or its per-image seeding |
+| `quorum.embed` | image ids stop being format-stable; shard order is lost |
+| `quorum.calibrate` | Platt stops improving ECE; calib_a/calib_b stops being a partition, or splits one image across halves |
+| `quorum.features` | spectral features go non-finite; a face is "found" in pure noise |
+| `chain_eval` | the metric helpers, on populations where AUROC is undefined |
+| `app/app.py --self-check` | `/api/analyze` stops rejecting bad uploads, or its response shape drifts from `docs/FRONTEND-HANDOVER.md` |
+| `build_manifest.py` *(--all)* | assertions A–F: organizer val leaks, the OOD carve overlaps, an image spans two splits |
+| `general --check` *(--all)* | an image sits on both sides of the train/eval line |
+| `spectral` *(--all)* | the calibration carve leaks back into the reported number |
+
+`scripts/selfcheck.py` deliberately does **not** run `quorum.fusion`,
+`quorum.detectors.face`, or bare `quorum.detectors.general`. Those retrain and
+overwrite the shipped `.npz` weights; they are training entry points that happen
+to assert, not tests. `general --check` is the assertion half, split out so it
+can run without touching the weights.
+
+`quorum.detectors.text` is skipped unless `rapidocr_onnxruntime` is installed
+(it is in neither requirements file).
+
+### Lint and formatting
+
+Ruff, one binary, config in `pyproject.toml`. `ruff check` is enforced by
+`selfcheck.py`; `ruff format` is available but **not** enforced.
+
+```bash
+python -m ruff check .            # lint -- runs in selfcheck.py
+python -m ruff format --diff .    # what the formatter would change
+python -m ruff format .           # apply it
+```
+
+The lint rule set is four families wide (`F`, `E9`, `E741`, `W`) and that is
+deliberate. A default set reports 181 findings here, of which 4 were real: the
+rest are this repo's hand-aligned comment columns and its `sys.path.insert`
+before imports, both of which are on purpose. `pyproject.toml` records which
+rules were left out and why.
+
+The formatter is opt-in for the same reason -- a Black-style pass rewrites 2,161
+lines across 26 files, almost all of it collapsing alignment like
+`quorum/degrade.py`'s `TRANSFORMS` table into ragged single spaces.
 
 Inspect single images through the face branch, and check crop alignment:
 

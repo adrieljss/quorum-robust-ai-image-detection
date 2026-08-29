@@ -156,18 +156,39 @@ def train_tampered():
     return fit(X, y), X, y
 
 
-if __name__ == "__main__":
-    # The check that would have caught the 43-image SID_Set leak: no image may
-    # sit on both sides of the train/eval line once load() has filtered.
-    seen = {}
-    for s in ("sid_train", "sid_tampered", "sid_calib", "so_fake_ood",
-              "sid_tampered_eval", "organizer_val"):
-        seen[s] = set(load(s)[1].image_id)
+SOURCES = ("sid_train", "sid_tampered", "sid_calib", "so_fake_ood",
+           "sid_tampered_eval", "organizer_val")
+
+
+def check_disjoint(sources=SOURCES):
+    """The check that would have caught the 43-image SID_Set leak: no image may
+    sit on both sides of the train/eval line once load() has filtered.
+
+    Split out of __main__ so it can be run WITHOUT retraining. Everything below
+    overwrites data/models/general.npz and tampered.npz, which is not something a
+    test run should do to the shipped weights.
+    """
+    seen = {s: set(load(s)[1].image_id) for s in sources}
     for a in seen:
         for b in seen:
             if a < b:
-                assert not (seen[a] & seen[b]),                     f"{len(seen[a] & seen[b])} images shared by {a} and {b}"
-    print(f"splits disjoint: {sum(map(len, seen.values())):,} images across {len(seen)} sources")
+                assert not (seen[a] & seen[b]), (
+                    f"{len(seen[a] & seen[b])} images shared by {a} and {b}")
+    print(f"splits disjoint: {sum(map(len, seen.values())):,} images "
+          f"across {len(seen)} sources")
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--check", action="store_true",
+                    help="split-disjointness only; do NOT retrain or overwrite the "
+                         "shipped .npz files")
+    if ap.parse_args().check:
+        check_disjoint()
+        raise SystemExit
+
+    check_disjoint()
 
     Xtr, Rtr = load("sid_train")
     print(f"general: train {Xtr.shape}  {Rtr.label.value_counts().to_dict()}")

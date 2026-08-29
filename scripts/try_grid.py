@@ -135,7 +135,7 @@ def chained(img, iid, emb, M):
             cover[(names[i], nm2)] = r["face"] is not None
         print(f"  {names[i]:10} done", file=sys.stderr)
 
-    print(f"\nSHIPPED score x100, row = first transform, col = second\n")
+    print("\nSHIPPED score x100, row = first transform, col = second\n")
     print(f"{'':10}" + "".join(f"{n[:4]:>5}" for n in names))
     for n1 in names:
         cells = "".join(f"{100 * grid[(n1, n2)]:5.0f}" for n2 in names)

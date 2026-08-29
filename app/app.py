@@ -170,6 +170,64 @@ def _clamp(value: float | None) -> float | None:
     return max(0.0, min(1.0, value))
 
 
+def self_check():
+    """The /api/analyze contract, through Flask's test client. No server, ~1s.
+
+    Written against the CONTRACT in docs/FRONTEND-HANDOVER.md, not against the
+    stub: when the real analyzer replaces _demo_result the frontend keeps
+    rendering only if these still pass. That is the whole reason it exists.
+    """
+    import io
+    import json
+
+    REQUIRED = {"verdict", "confidence", "signals", "explanation", "reliability"}
+    SIGNALS = {"general", "face", "text", "regularity"}
+    png = b"not-a-real-png-just-bytes"   # the stub reads length, never pixels
+
+    c = app.test_client()
+
+    # rejections -- these are a trust boundary, so they are checked before the
+    # happy path rather than after it
+    assert c.post("/api/analyze").status_code == 400, "no files must be rejected"
+    assert c.post("/api/analyze", data={"images": (io.BytesIO(png), "x.exe")},
+                  content_type="multipart/form-data").status_code == 400, (
+        "unsupported extension accepted")
+    assert c.post("/api/analyze", data={"images": (io.BytesIO(b""), "x.png")},
+                  content_type="multipart/form-data").status_code == 400, (
+        "empty file accepted")
+
+    # happy path, two files: order and filename echo are what pairs a result
+    # with its upload in the UI
+    r = c.post("/api/analyze", content_type="multipart/form-data", data={
+        "images": [(io.BytesIO(png), "one.png"), (io.BytesIO(png + b"z"), "two.jpg")]})
+    assert r.status_code == 200, r.status_code
+    out = json.loads(r.data)["results"]
+    assert [x["filename"] for x in out] == ["one.png", "two.jpg"], out
+
+    for x in out:
+        assert REQUIRED <= set(x), f"missing {REQUIRED - set(x)}"
+        assert x["verdict"] in ("likely_ai", "likely_real", "uncertain"), x["verdict"]
+        assert 0.0 <= x["confidence"] <= 1.0, x["confidence"]
+        assert x["reliability"] in ("high", "medium", "low"), x["reliability"]
+        assert set(x["signals"]) == SIGNALS, x["signals"]
+        for k, v in x["signals"].items():
+            assert v is None or 0.0 <= v <= 1.0, f"signals.{k} = {v}"
+        assert set(x["provenance"]) == {"c2pa", "exif_software"}, x["provenance"]
+
+    # same bytes, same verdict -- the frontend reloads and must not see the
+    # answer change under it
+    again = json.loads(c.post("/api/analyze", content_type="multipart/form-data",
+                              data={"images": (io.BytesIO(png), "one.png")}).data)
+    assert again["results"][0]["verdict"] == out[0]["verdict"], "not deterministic"
+
+    print(f"app.py ok: /api/analyze contract holds "
+          f"({'DEMO STUB -- not a real verdict' if DEMO_MODE else 'real analyzer'})")
+
+
 if __name__ == "__main__":
-    # 0.0.0.0 is useful if you test from another device on the LAN.
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    import sys
+    if "--self-check" in sys.argv[1:]:
+        self_check()
+    else:
+        # 0.0.0.0 is useful if you test from another device on the LAN.
+        app.run(host="127.0.0.1", port=5000, debug=True)

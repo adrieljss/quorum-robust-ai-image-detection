@@ -68,8 +68,8 @@ def apply(img: Image.Image, kind: str, param, rng=None) -> Image.Image:
     if kind == "crop":
         w, h = img.size
         cw, ch = int(w * param), int(h * param)
-        l, t = (w - cw) // 2, (h - ch) // 2
-        return img.crop((l, t, l + cw, t + ch)).resize((w, h), Image.BICUBIC)
+        left, top = (w - cw) // 2, (h - ch) // 2
+        return img.crop((left, top, left + cw, top + ch)).resize((w, h), Image.BICUBIC)
 
     raise ValueError(f"unknown transform: {kind}")
 
