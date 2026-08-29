@@ -48,7 +48,15 @@ COLUMNS = (["cal_general", "cal_tampered", "cal_face", "face_present",
            + [f"content_{c}" for c in CONTENT]
            + ["degradation_estimate", "provenance_prior"])
 
-NEUTRAL = 0.5          # a branch that did not fire must not read as "real"
+# A branch that did not fire must not read as "real" -- but inside THIS model
+# that is a readability choice, not a performance one. Every absent branch also
+# gets a `*_present` indicator, so its column is constant and the LR absorbs the
+# fill into the indicator weight. Measured on so_fake_ood, filling cal_face with
+# 0.0 instead: 0.9377/0.9052 clean/worst against 0.9378/0.9053. Same model.
+# The choice DOES matter where no fitted weight sits in between -- predict.py's
+# max(), where 0 is the correct fill, and anything the demo displays, where 0
+# claims the branch ran and found the image authentic.
+NEUTRAL = 0.5
 TAMPERED_FIT = "a"     # probe fits this half of sid_tampered, fusion sees the other
 
 

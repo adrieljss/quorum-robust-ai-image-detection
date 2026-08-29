@@ -102,11 +102,19 @@ often fails. CVPR 2025 (SIDA paper).
 
 Three classes: `real`, `full_synthetic`, `tampered`.
 
-**Use `real` vs `full_synthetic` for the binary task.** `tampered` is a different
-problem (localised manipulation of a real photo) — out of scope for AIGC
-detection as the brief frames it. Optionally keep tampered rows labelled
-separately for error analysis: how your detector behaves on partially-manipulated
-images is a good error-analysis paragraph.
+**Use `real` vs `full_synthetic` to train the general probe.** `tampered` is a
+different problem — localised manipulation of a real photo, which is globally
+authentic — so it gets its own probe rather than being folded into the general
+one. `train_tampered()` fits tampered-vs-SID-reals and never sees a synthetic
+image; `predict.py` ships `max()` of the two.
+
+> **Superseded, 30 Aug.** This paragraph used to read "out of scope for AIGC
+> detection as the brief frames it", which contradicted both `HANDOVER.md` §5g
+> and what actually ships. The problem statement's §5.1 lists "or lightly
+> edited" among the post-processing operations, and the project's own definition
+> of robust is "survives editing". **Tampered images are in scope and the branch
+> ships.** The full measurement of what that costs and buys is `HANDOVER.md`
+> §5h; the counterfactual is `docs/figures-no-tampered/`.
 
 **Caveat to check on download:** SID_Set may not carry per-generator labels. That
 is fine here — the unseen-generator guarantee comes from So-Fake-OOD being a

@@ -352,6 +352,19 @@ def text_features(img) -> tuple[np.ndarray, bool]:
 PaddleOCR or EasyOCR (~10M params). Garbled signage is among the
 highest-precision signals available and costs no training data.
 
+> **FALSIFIED on our data, 29 Aug.** Both claims above were tested and neither
+> held. The six features transfer at **0.4627 — below chance** (in-distribution
+> CV 0.6789), and five of the six flip sign between SID_Set and organizer_val:
+> they track text *composition*, not deformation. "Garbled signage" is backwards
+> here — SID_Set's AI images have **cleaner** text than its reals, because the
+> reals are photographs of real signage shot at an angle in bad light. The tell
+> exists in the wild; it does not exist in our training data.
+>
+> A second design — CLIP on perspective-warped OCR crops, 769-d — does work
+> (transfer 0.8083) but is worth +0.0022 and does not close the text-heavy
+> content gap it was built for. Both attempts, with numbers:
+> `HANDOVER.md` §5b. Code: `quorum/detectors/text.py`, wired into nothing.
+
 ---
 
 ## 7. Spectral branch

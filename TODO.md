@@ -106,9 +106,13 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
       top of this list.** It is now the highest-value untried idea in the whole
       project, for three separate reasons and one build:
       1. It is the principled fix for our largest failure — the tampered branch
-         flags a third of real COCO photographs because it cannot generalise
+         flags **a quarter** of real COCO photographs (24.2%, re-measured
+         30 Aug; the old "a third" was stale) because it cannot generalise
          "untampered" to unseen photography. Comparing 3x3 patches *against each
-         other* never needs to know what real photography looks like globally
+         other* never needs to know what real photography looks like globally.
+         **§5h confirms the branch ships, so this fix is still wanted** — it is
+         the only route to keeping edit-detection without paying for it in
+         false positives on unfamiliar photography
       2. It gives us **explainability, which we currently have none of.** A
          per-patch score is a heat map: a verdict that points at a region beats
          one that cites a logit, and it is judged
@@ -138,6 +142,20 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
 - [x] Decide build or cut. **Cut.** Nine hours of OCR for a 7-parameter model
       against fusion being the critical path. Both slots stay in the fusion
       vector at neutral fill, so wiring it back later is one line
+- [x] **Attempted anyway, 29-30 Aug (Adriel, spare machine). Still cut, and now
+      for measured reasons rather than budget ones.** `HANDOVER.md` §5b.
+      Attempt 1, six OCR statistics: cross-dataset transfer **0.4627, below
+      chance** — the features track text composition, not deformation, and five
+      of six flip sign between datasets. This **falsifies `PIPELINE.md` §6's
+      "garbled signage is a high-precision tell"** on our data: SID_Set's AI
+      images have *cleaner* text than its reals. Attempt 2, CLIP on warped OCR
+      crops (769-d, face-branch shape): genuinely works — transfer 0.8083, logit
+      correlation 0.391 with the shipped score — but worth **+0.0022
+      [+0.0015, +0.0029]** on organizer_val, and it lifts every content class
+      uniformly, so it does **not** close the text-heavy gap it was built for
+      (-0.0420 -> -0.0409). Code in `quorum/detectors/text.py`, untracked, wired
+      into nothing. Not measured: the 15-variant grid, ~1.5h on a 500-image
+      subsample — that is the run that would decide it
 
 ---
 
@@ -239,7 +257,7 @@ not the training.
       backend: load the model once at import, never per request
 - [x] **`predict.py` has an operating point.** It never did — 0.5 was the
       sigmoid default, chosen by nobody, and it cost 0.09 precision while
-      flagging 25.5% of COCO photographs as AI. `scripts/pick_threshold.py`
+      flagging 27.6% of COCO photographs as AI. `scripts/pick_threshold.py`
       picks 0.766 on `calib_ood`; the score is shifted so 0.5 *is* that point,
       which leaves AUROC bit-identical. A trade, not a free win — recall
       0.882 → 0.767, F1 0.820 → 0.808, and 0.5 was already near F1-optimal.
@@ -263,8 +281,35 @@ not the training.
       because there are no tampered images for the tampered branch to catch;
       and DALL·E 3 is an easier target than So-Fake-OOD, so quote 0.9170 as
       the headline, not this.
-- [ ] Per-content-bucket AUROC — wild variance means we are partly reading
-      semantics, and saying so is a strength
+- [x] Per-content-bucket AUROC — measured. **Text-heavy is the worst class on
+      both benchmarks** (so_fake_ood -0.0564, organizer_val -0.0420 against the
+      pooled mean), which is what motivated the two text attempts above. Uses
+      the free CLIP zero-shot `content_onehot()` over cached embeddings
+- [x] **All six figures now benchmark the tampered eval set**, 30 Aug. It was
+      absent from five of them: only `robustness.png`'s `tampered` column ever
+      loaded `sid_tampered_eval`, and that column was unlabelled so it read as a
+      fourth branch on So-Fake-OOD. Now: a recall curve on `threshold.png`, a
+      third panel on `separation.png`, a `general (on edited)` column on both
+      grids, a fifth column on `generalisation.png`, and a third eval-set pair
+      on `benchmarks.png`
+- [x] `make_figures.py --no-tampered` -> `docs/figures-no-tampered/`, the
+      general-probe-alone counterfactual, threshold re-picked (0.640, not
+      0.766). Evidence for Stage 5; **not** a proposal — see the decision below
+- [x] Two figure captions asserted numbers instead of computing them (`0.9170`
+      as the headline claim, "a quarter of ordinary photographs"). Both now
+      derive from the data, so they cannot outlive the result
+- [x] `pick_threshold.py` refactor: `shipped(X, names=...)` takes a branch
+      subset and the accuracy-plateau rule is now `plateau()`, so the
+      counterfactual re-picks its threshold by the *same* rule rather than a
+      second copy of it
+- [x] **Bug found and fixed in `pick_threshold.py` while re-running it**: its
+      "COCO FP" column selected `organizer_val` by `variant` alone, so it
+      counted every correctly-caught DALL-E image as a false positive against
+      real photography — **56.3% at 0.5 where the truth is 27.6%**. The numbers
+      in `predict.py`'s docstring were always right; the script that produced
+      them had drifted after WildFake was added to that source. Same root cause
+      as the `make_figures` bug fixed the same day, opposite direction.
+      `HANDOVER.md` §6
 - [x] Re-run the grid once WildFake lands — done; see above
 
 ---
@@ -285,14 +330,25 @@ Feeds Innovation & Problem Insight at 20%. Not an afterthought.
       hands you the cases directly. The shard is deleted after the pass — without
       the id a false positive found there can never be looked at again
 - [x] **The strongest case is banked and written up**: the tampered branch fires
-      on 33% of real COCO photographs, and the obvious fix (more real-photo
+      on 24.2% of real COCO photographs, and the obvious fix (more real-photo
       diversity) made it *worse* — COCO false positives 13.6% → 53.5% while its
       own AUROC rose 0.9528 → 0.9884. Capacity and data are not the lever.
       `HANDOVER.md` §5g
-- [ ] Stated trade-offs: robustness vs clean accuracy, generalisation vs
+- [x] Stated trade-offs: robustness vs clean accuracy, generalisation vs
       in-distribution ceiling, false-positive cost at platform scale.
-      **Three are now measured, not asserted** — the threshold trade (§5f.6),
-      the fusion trade (§5c), and the `max` false-positive cost (§5g)
+      **All four are measured, not asserted** — the threshold trade (§5f.6), the
+      fusion trade (§5c), the `max` false-positive cost (§5g), and now the
+      tampered branch itself on every axis (§5h)
+- [x] **§5g is closed. The tampered branch stays** — decided 30 Aug, Adriel.
+      Dropping it wins four of five metrics on synthetic-vs-real and cuts COCO
+      false positives 8.9% -> 2.9%, but takes edited-photo AUROC from 0.9035 to
+      **0.5286**, a coin flip, and recall on edited images from 74.6% to 10.7%.
+      The two readings of "robust" disagree and both are real: the branch makes
+      transform-robustness 6x worse on the organizer set (drop 0.0121 ->
+      0.0773) and is the only thing that survives editing. `HANDOVER.md` §5h
+- [ ] Write the Error Analysis Note itself. **The material is now banked** —
+      §5h is most of it, and `docs/figures-no-tampered/` is the six-figure
+      counterfactual. This is assembly, not research
 
 ---
 

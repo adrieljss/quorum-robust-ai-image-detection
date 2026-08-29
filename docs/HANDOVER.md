@@ -235,6 +235,45 @@ for a 7-parameter model, and it is the weakest of the four signals.
 **Recommendation: cut it** and spend the time on fusion. If the team wants it,
 run OCR on `clean` only (~45 min) and let fusion fill the variants.
 
+#### Attempted twice on 29-30 Aug (Adriel, on a spare machine). Still cut.
+
+Kacey's laptop could not run the OCR pass, so it was tried here. Both attempts
+are in `quorum/detectors/text.py` — **untracked and not wired into anything.**
+Keep the file; it is the record, and attempt 2 is two lines from being usable if
+the premise ever changes.
+
+The motivation was real and still stands: **text-heavy is the worst content
+class on both benchmarks** (so_fake_ood -0.0564, organizer_val -0.0420 against
+the pooled mean). Neither attempt fixed it.
+
+**Attempt 1 — six OCR statistics** (character confidence, word count, aspect
+irregularity, etc.), 6 features, logistic. In-distribution CV **0.6789**;
+cross-dataset transfer to organizer_val **0.4627 — below chance.** Five of the
+six features flip sign between SID_Set and organizer_val. Diagnosis: the
+features track text *composition*, not deformation.
+
+This **falsifies `PIPELINE.md` §6's premise** that "garbled signage is a
+high-precision tell". On SID_Set it is backwards — the AI images there have
+*cleaner* text than the reals, because the reals are photographs of real signage
+shot at an angle in bad light. The tell exists in the wild; it does not exist in
+our training data.
+
+**Attempt 2 — CLIP on OCR-detected text crops.** Largest detected text region,
+perspective-warped to a fixed height, up to 3 square 224px tiles, embeddings
+mean-pooled and renormed, plus a standardised `log2(text_px)` size column
+(769-d, the same shape as the face branch). This one *works*: transfer
+**0.8083**, size column worth +0.095, logit correlation with the shipped score
+0.391 (i.e. genuinely complementary).
+
+It is just too small to matter. Full organizer_val gain **+0.0022
+[+0.0015, +0.0029]**, and — the reason it was cut rather than shipped — it does
+**not** close the gap it was built for. The text-heavy content deficit moved
+-0.0420 to -0.0409: it lifts every content class uniformly. A branch that fixes
+text-heavy images specifically is not what this is.
+
+Not measured, and what would decide it if anyone revisits: the 15-variant
+degradation grid on a 500-image subsample, ~1.5h. Everything above is clean-only.
+
 ### 5c. Fusion — the real work
 
 This is where the branches become a system, and it is the critical path —
@@ -594,12 +633,19 @@ the sigmoid's default, chosen by nobody. On held-out `test_ood`:
 
 ```
 test_ood clean          acc    prec  recall      F1   COCO FP  tamp rec
-  0.500               0.806   0.766   0.882   0.820     25.5%     0.877
-  0.766               0.818   0.854   0.767   0.808      8.6%     0.742
-test_ood all 15 var
-  0.500               0.801   0.776   0.847   0.810     29.4%
-  0.766               0.798   0.864   0.707   0.778     12.2%
+  0.500               0.812   0.771   0.890   0.826     27.6%     0.881
+  0.766               0.825   0.882   0.751   0.811      8.9%     0.746
+test_ood all 15 var                                    (COCO all 15 var too)
+  0.500               0.810   0.779   0.868   0.821     30.5%     0.849
+  0.766               0.805   0.889   0.698   0.782     10.0%     0.672
 ```
+
+> **Recomputed 30 Aug.** This table used to read `0.806 / 0.766 / 0.882 / 0.820 /
+> 25.5%` on the first row and predated a probe retrain. The clean rows above now
+> match `predict.py`'s docstring table exactly, which was the correct one all
+> along. Note the COCO column: `predict.py` quotes the *clean* COCO rate on every
+> row (27.6% / 8.9%); the all-15 block here quotes the all-15 COCO rate, which is
+> higher. Same model, different denominator — say which you mean.
 
 **This is a trade, not a free win.** Precision +0.09 and false positives on real
 photography cut ~3x, paid for in recall (−0.11 clean, −0.14 pooled) and F1
@@ -695,7 +741,10 @@ only recorded here.
 
 ---
 
-## 5g. Open: the tampered branch owns our false positives — Adriel
+## 5g. The tampered branch owns our false positives — Adriel
+
+**Closed by §5h, 30 Aug: the branch stays.** This section is the finding; §5h is
+the decision and the measurement behind it. Read both.
 
 Found while placing the threshold, not fixed. **The single biggest remaining
 lever on accuracy and precision**, and a decision for the team rather than one
@@ -705,9 +754,17 @@ person.
 "untampered" is SID_Set-shaped. On real photography it has never seen:
 
 ```
-tampered probe on REAL so_fake_ood images: median 0.0939, 14.8% above 0.5
-tampered probe on REAL COCO images:        median 0.3050, 33.0% above 0.5
+                                       median   above 0.5        n
+tampered probe on REAL so_fake_ood     0.0899       10.4%    2,096   (clean)
+tampered probe on REAL COCO            0.2490       24.2%    5,000   (clean)
+tampered probe on REAL COCO            0.2862       28.7%   75,000   (all 15)
 ```
+
+> **Re-measured 30 Aug.** This block used to read `0.0939 / 14.8%` and
+> `0.3050 / 33.0%`; those predate a probe retrain and are wrong by roughly a
+> third. The finding is unchanged in direction and shape — COCO is still ~2.5x
+> worse than So-Fake-OOD's reals — but quote the numbers above. "A third of COCO"
+> appears elsewhere in the repo and should read **a quarter**.
 
 `max()` means any one branch firing flags the image, so the combiner inherits
 the *worst* branch's false-positive rate by construction. With Platt-calibrated
@@ -741,6 +798,124 @@ Reproduce: `scripts/pick_threshold.py` for the threshold table.
 
 ---
 
+## 5h. The tampered branch: measured on both axes, KEPT — 30 Aug, Adriel
+
+§5g left this open and called it "the single biggest remaining lever on accuracy
+and precision". It is now measured on every axis and **decided: the tampered
+branch ships.** Adriel's call, on the reading of "robust" that the project is
+named after — a detector that survives editing.
+
+### What dropping it would buy
+
+Every synthetic-vs-real number improves, and not marginally. Each scorer at its
+own operating point (re-picked by the same plateau rule, so this is not a
+threshold artifact), held-out `test_ood` clean:
+
+```
+scorer            cut     acc    prec  recall      F1  COCO FP  DALL-E rec
+max  SHIPPED    0.766  0.8247  0.8816  0.7507  0.8109     8.9%      83.2%
+general alone   0.640  0.8423  0.8579  0.8211  0.8391     2.9%      89.3%
+```
+
+Better on four of five, and COCO false positives fall 3x. The §5g diagnosis was
+right: the tampered branch owns them. At the *old* 0.5 default the COCO
+false-positive rate is 27.6% for `max` and **5.9%** for general alone, so nearly
+all of the original false-accusation problem was this branch and not the cut.
+
+AUROC, clean / worst across the 15 variants:
+
+```
+                        general alone        max (shipped)
+organizer_val        0.9844 / 0.9723      0.9446 / 0.8673
+so_fake_ood          0.9245 / 0.9013      0.9085 / 0.8731
+```
+
+### What dropping it would cost
+
+```
+                        general alone        max (shipped)
+sid_tampered_eval    0.5286 / 0.4623      0.9035 / 0.8392
+```
+
+**0.5286 is a coin flip, and 0.4623 is below chance.** Per-variant the general
+branch runs 0.462-0.574 on edited photographs and never leaves that band; it
+dips below 0.5 on 6 of the 15. Recall on edited images at each operating point:
+74.6% for `max`, **10.7%** for general alone.
+
+The mechanism, visible in `docs/figures/separation.png`'s third panel: the
+general branch's score distribution on edited photos is not shifted low, it is
+the *real-photo distribution*. A locally-edited photograph is globally
+authentic, so a probe that reads global synthesis has nothing to grip.
+
+### Both readings of "robust", and they disagree
+
+This is the honest tension and it belongs in the write-up.
+
+```
+clean -> worst across the 15 transforms
+                        general alone    max (shipped)
+organizer set              0.0121           0.0773
+So-Fake-OOD                0.0232           0.0354
+```
+
+The brief grades transform-robustness explicitly (§5.2, six transform families).
+The tampered branch makes it **6x worse on the organizer set**. It buys
+robustness-to-editing and costs robustness-to-transforms. Keeping it chooses the
+reading where an edited photo is a positive — §5.1's "or lightly edited" is the
+textual basis, and `DATA_LAYOUT.md` §4.1 has been corrected to match.
+
+### The branch's own weak spot, for the error-analysis note
+
+Scored alone on `sid_tampered_eval`, negatives borrowed from three real pools:
+
+```
+negatives drawn from            n_real   clean   worst    drop   worst variant
+SID_Set reals (trained around)   30000  0.9744  0.9303  0.0441   noise01
+So-Fake-OOD reals                31440  0.9528  0.8962  0.0566   noise01
+COCO val2017 (unseen)            75000  0.9069  0.7286  0.1782   noise01
+```
+
+False-positive rate at the raw 0.5 cut: **4.9% / 10.4% / 24.2%**. One weakness,
+showing up twice — the branch trains only on SID_Set reals, so "not a SID real"
+and "edited" are entangled in it. The 0.9528 headline is a property of the real
+pool it was scored against, not of the branch.
+
+**`noise01` is its worst variant in all three pools.** Additive noise, not blur
+or JPEG. If the judges' grid leans on noise, this is where we lose.
+
+### `figures-no-tampered/` — the counterfactual, kept
+
+`python scripts/make_figures.py --no-tampered` regenerates all six figures with
+the general probe alone, into `docs/figures-no-tampered/`. It re-picks the
+threshold on `calib_ood` by the same rule (0.640, not 0.766 — that constant was
+fitted to `max()` and does not transfer).
+
+It is the ready-made evidence for **deliverable #5, the Error Analysis Note**:
+six figures showing exactly what dropping the branch would cost. Keep it in the
+repo; do not treat it as a proposal.
+
+### Also checked, since general would have stood alone
+
+The ridge-vs-logistic comparison in §4c was made when `max` was the scorer.
+Re-run for the branch on its own:
+
+```
+                              clean   worst    drop   worst variant
+logistic (main's original)   0.9170  0.8848  0.0321   noise002
+ridge + Platt (merged)       0.9245  0.9013  0.0232   noise002
+```
+
+Ridge dominates at every variant, and the robustness drop is 28% smaller. At a
+threshold matched on COCO false positives the two tie on F1 (0.8400 vs 0.8395),
+logistic trading precision (0.7969 vs 0.8566) for recall (88.7% vs 82.4%) — but
+that comparison matches on COCO reals and measures recall on So-Fake-OOD, so it
+is a calibration-transfer artifact, not evidence logistic ranks better. **Ridge
+stays; the threshold is a separate dial.**
+
+Reproduce: `scripts/make_figures.py` (both modes), `scripts/eval_grid.py`.
+
+---
+
 ## 6. Gotchas that already cost us time
 
 - **Backbone is `ViT-L-14-quickgelu`, not `ViT-L-14`.** OpenAI weights need
@@ -765,6 +940,17 @@ Reproduce: `scripts/pick_threshold.py` for the threshold table.
   asked for.** `dict(zip(*df.to_dict("list").values()))` therefore builds the map
   backwards and the filter silently passes everything. It cost an hour here.
   Zip by explicit column name.
+- **`organizer_val` is no longer COCO-only, and two scripts still assumed it
+  was.** It was 5,000 COCO reals; WildFake DALL-E 3 added 3,719 fakes to the
+  same source name, and anything selecting it by `variant` alone silently
+  changed meaning. It broke two places in *opposite* directions:
+  `make_figures.populations()` kept only `label == 0` and so drew the
+  benchmark's real half in every figure and its fake half in none;
+  `pick_threshold.py` filtered on neither and counted every correctly-caught
+  DALL-E image as a COCO false positive, printing **56.3% at 0.5 against a true
+  27.6%**. Both fixed 30 Aug. `build_manifest.py`'s assertion is label-agnostic
+  by design and is fine. **If you select rows from `organizer_val`, say which
+  label you mean.**
 - **CSV line endings.** `ShardWriter` now writes LF and `.gitattributes` pins
   `*.csv eol=lf`. Before that, a fresh `pull_cache.py` rewrote every tracked
   manifest CSV to CRLF — 109 files, ~973k insertions, zero content change — and
