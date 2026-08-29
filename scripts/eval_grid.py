@@ -184,11 +184,17 @@ def main(source, do_comb):
          "![Threshold sweep](figures/threshold.png)\n\n"
          "![Score separation](figures/separation.png)\n"
          if source == "so_fake_ood" else
-         "\n![Benchmarks](figures/benchmarks.png)\n\n_This source against the "
-         "So-Fake-OOD headline, general probe vs the shipped `max`. The other "
-         "figures in `docs/figures` are built from So-Fake-OOD and are not "
-         "shown here. Regenerate with `python scripts/make_figures.py "
-         "benchmarks`._\n"),
+         # Only link the grid image if make_figures.py actually built one for
+         # this source -- an unconditional link renders as a broken image on any
+         # source nobody has drawn, which is every source except organizer_val.
+         ((f"\n![Robustness grid](figures/robustness-{source}.png)\n\n_The table "
+           f"above as a heatmap, rows sorted by mean drop from clean. Regenerate "
+           f"with `python scripts/make_figures.py robustness-organizer`._\n"
+           if (DOCS / "figures" / f"robustness-{source}.png").exists() else "")
+          + "\n![Benchmarks](figures/benchmarks.png)\n\n_This source against the "
+          "So-Fake-OOD headline, general probe vs the shipped `max`. The "
+          "remaining figures in `docs/figures` are built from So-Fake-OOD. "
+          "Regenerate with `python scripts/make_figures.py benchmarks`._\n")),
     ]
     if comb is not None:
         parts += [

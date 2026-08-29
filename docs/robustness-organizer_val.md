@@ -35,9 +35,13 @@ resize025   0.9890 0.9109    0.5199    0.9002
 resize05    0.9876 0.9372    0.6170    0.8740
 ```
 
+![Robustness grid](figures/robustness-organizer_val.png)
+
+_The table above as a heatmap, rows sorted by mean drop from clean. Regenerate with `python scripts/make_figures.py robustness-organizer`._
+
 ![Benchmarks](figures/benchmarks.png)
 
-_This source against the So-Fake-OOD headline, general probe vs the shipped `max`. The other figures in `docs/figures` are built from So-Fake-OOD and are not shown here. Regenerate with `python scripts/make_figures.py benchmarks`._
+_This source against the So-Fake-OOD headline, general probe vs the shipped `max`. The remaining figures in `docs/figures` are built from So-Fake-OOD. Regenerate with `python scripts/make_figures.py benchmarks`._
 
 ## Combiners, on the full task
 
