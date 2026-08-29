@@ -28,7 +28,7 @@ from sklearn.metrics import roc_auc_score
 from quorum.calibrate import (CALIB_SOURCE, CALIB_SPLIT, EVAL_SPLIT, fit_platt,
                               half, platt, plot_reliability)
 from quorum.detectors.face import design, px_stats
-from quorum.detectors.general import MODELS, fit, load
+from quorum.detectors.general import MODELS, fit, fit_general, load
 
 MODEL = MODELS / "fusion.npz"
 CONTENT_VECS = MODELS / "content_prompts.npz"
@@ -112,7 +112,9 @@ def fit_branches():
     tampered = fit(np.concatenate([Xg[real], Xt[ht]]),
                    np.r_[np.zeros(real.sum()), np.ones(ht.sum())])
     return {
-        "general": fit(Xg, Rg.label.values),
+        # fit_general, not fit: this must be the probe predict.py ships, or
+        # the combiner table compares fusion against a model nobody runs.
+        "general": fit_general(Xg, Rg.label.values),
         "tampered": tampered,
         "face": fit(design(Xf, Rf, stats), Rf.label.values),
         "spectral": fit(Xs, Rs.label.values),

@@ -85,7 +85,20 @@ def main():
     # predict.py emits a score, not a verdict, so shift the scale instead of
     # exporting a threshold: 0.5 on the output becomes this operating point.
     # Monotone, so AUROC is untouched and rank-based grading sees no change.
-    print(f"\npaste into predict.py:\n\n    OPERATING_POINT = {thr:.4f}")
+    # This rule maximises ACCURACY and nothing else. Accuracy is nearly flat
+    # across the plateau while the COCO false-positive rate is not, so the
+    # suggestion below can be worse on the axis this project actually chose.
+    # Compare the COCO column above before pasting.
+    from predict import OPERATING_POINT as SHIPPED
+    print(f"\naccuracy-optimal on calib_ood: {thr:.4f}")
+    if abs(thr - SHIPPED) > 1e-4:
+        print(f"predict.py ships:          {SHIPPED:.4f}  <- NOT the same, and that "
+              f"may be deliberate.\n"
+              f"  The plateau is flat in accuracy and steep in false positives on "
+              f"real\n  photography. 0.766 was kept over 0.692 because it holds COCO "
+              f"at 8.9%\n  instead of 13.7% for +0.002 accuracy. See predict.py.")
+    else:
+        print(f"predict.py ships:          {SHIPPED:.4f}  (agrees)")
 
 
 if __name__ == "__main__":

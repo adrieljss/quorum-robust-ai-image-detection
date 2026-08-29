@@ -8,7 +8,7 @@ AUROC per branch under each degradation setting. The clean-to-worst **drop** is 
 
 ```
           clean  worst worst_variant   drop
-general  0.9837 0.9729        crop08 0.0108
+general  0.9844 0.9723        crop08 0.0121
 face     0.9520 0.8887        blur20 0.0633
 spectral 0.6341 0.5199     resize025 0.1143
 tampered 0.9069 0.7286       noise01 0.1782
@@ -18,21 +18,21 @@ tampered 0.9069 0.7286       noise01 0.1782
 
 ```
            general   face  spectral  tampered
-clean       0.9837 0.9520    0.6341    0.9069
+clean       0.9844 0.9520    0.6341    0.9069
 blur05      0.9888 0.9541    0.6074    0.9110
-blur10      0.9908 0.9401    0.6303    0.8847
-blur20      0.9825 0.8887    0.5605    0.7893
-crop08      0.9729 0.9341    0.5376    0.8464
-jitter02    0.9831 0.9485    0.6230    0.8848
-jpeg30      0.9866 0.9283    0.6706    0.9473
-jpeg50      0.9871 0.9323    0.6863    0.9448
-jpeg70      0.9895 0.9432    0.7311    0.9278
-jpeg90      0.9873 0.9557    0.6073    0.9024
-noise002    0.9845 0.9366    0.6289    0.8023
-noise005    0.9815 0.9424    0.5948    0.7709
-noise01     0.9854 0.9254    0.5591    0.7286
-resize025   0.9854 0.9109    0.5199    0.9002
-resize05    0.9844 0.9372    0.6170    0.8740
+blur10      0.9907 0.9401    0.6303    0.8847
+blur20      0.9889 0.8887    0.5605    0.7893
+crop08      0.9723 0.9341    0.5376    0.8464
+jitter02    0.9828 0.9485    0.6230    0.8848
+jpeg30      0.9859 0.9283    0.6706    0.9473
+jpeg50      0.9896 0.9323    0.6863    0.9448
+jpeg70      0.9916 0.9432    0.7311    0.9278
+jpeg90      0.9852 0.9557    0.6073    0.9024
+noise002    0.9843 0.9366    0.6289    0.8023
+noise005    0.9821 0.9424    0.5948    0.7709
+noise01     0.9871 0.9254    0.5591    0.7286
+resize025   0.9890 0.9109    0.5199    0.9002
+resize05    0.9876 0.9372    0.6170    0.8740
 ```
 
 ![Benchmarks](figures/benchmarks.png)
@@ -45,9 +45,9 @@ _This source against the So-Fake-OOD headline, general probe vs the shipped `max
 
 ```
                FULL avg  FULL worst  organizer_val clean  organizer_val worst
-general alone    0.8849      0.8564               0.9837               0.9729
-max(gen,tamp)    0.9113      0.8379               0.9541               0.8841
-fusion LR        0.8960      0.8341               0.9521               0.8900
+general alone    0.8986      0.8684               0.9844               0.9723
+max(gen,tamp)    0.9285      0.8787               0.9693               0.9385
+fusion LR        0.9142      0.8664               0.9648               0.9356
 ```
 
 The task is **disjunctive** -- "AI touched this" = fully-synthetic OR locally edited -- so `max` beats a linear combiner in log-odds space, which is forced into one additive trade-off across two complementary detectors. `predict.py` ships `max` on this measurement.

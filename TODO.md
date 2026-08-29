@@ -99,7 +99,9 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
 
 ### Albert — general probe
 - [x] Baseline 0.9124 clean / 0.8798 worst on So-Fake-OOD
-- [ ] Try MLP head; keep linear unless it clearly wins on OOD
+- [x] Try MLP head; it underperformed the linear models on OOD
+- [x] Compare linear alternatives; RidgeClassifier (`alpha=0.001`,
+      `solver="lsqr"`) selected at 0.9221 clean / 0.8981 worst
 - [ ] **Multi-crop / patch self-consistency (PIPELINE §4.5) — promoted to the
       top of this list.** It is now the highest-value untried idea in the whole
       project, for three separate reasons and one build:
@@ -111,11 +113,13 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
          per-patch score is a heat map: a verdict that points at a region beats
          one that cites a logit, and it is judged
       3. Zero new parameters, same frozen CLIP, 9x forwards on one pass
-- [ ] Freeze the winner into `data/models/general.npz`
+- [x] Freeze the winner into `data/models/general.npz`
 
 ### Albert — regularity / spectral
-- [ ] `quorum/detectors/spectral.py` — ~1 hour, 9 parameters
-- [ ] Per-variant AUC table (expect collapse under resize; that is correct)
+- [x] `quorum/detectors/spectral.py` — scorer over the existing 8 features
+- [x] Per-variant AUC table — clean 0.7365 / worst 0.5596 (`blur10`)
+- [x] Confirmed classifier changes do not materially improve spectral; retain it
+      as a complementary low-level signal for fusion
 
 ### Kacey — face probe
 - [x] `quorum/detectors/face.py`, conditioning on `face_px` — 0.9382 clean /

@@ -103,7 +103,7 @@ python scripts/try_face.py photo.jpg other.png --save-crops out/
 | | |
 |---|---|
 | Data | complete — 330,851 rows, 36,686 images, 6 sources, assertions A–F green |
-| Branches | general, tampered, face, spectral features cached; `detectors/spectral.py` not yet written |
+| Branches | general (ridge + folded Platt), tampered, face, spectral — all four have modules |
 | Combiner | `max(general, tampered)`, chosen on measurement; `fusion.py` built and reproducible |
 | Threshold | 0.766 on the raw score, picked on `calib_ood`, shipped as a shift so 0.5 is the cut |
 | Eval | `docs/robustness.md` (So-Fake-OOD, the headline); `docs/robustness-organizer_val.md` (organizer benchmark, general 0.9837/0.9729); composed pairs ~−0.013 AUROC |

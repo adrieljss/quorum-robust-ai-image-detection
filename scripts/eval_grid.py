@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from quorum.detectors.face import design, px_stats
-from quorum.detectors.general import load, fit, auc_by_variant
+from quorum.detectors.general import load, fit, fit_general, auc_by_variant, train_tampered
 
 DOCS = Path(__file__).resolve().parents[1] / "docs"
 
@@ -70,7 +70,8 @@ def grid(prefix, eval_source, train_source="sid_train"):
     if prefix == "face_":                       # Kacey's 769th feature, not the 768-d baseline
         st = px_stats(Rtr)
         Xtr, X = design(Xtr, Rtr, st), design(X, R, st)
-    return auc_by_variant(fit(Xtr, Rtr.label.values), X, R)
+    trainer = fit_general if prefix == "" else fit
+    return auc_by_variant(trainer(Xtr, Rtr.label.values), X, R)
 
 
 def tampered_grid(real_source):

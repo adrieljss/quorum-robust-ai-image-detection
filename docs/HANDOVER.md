@@ -438,21 +438,16 @@ Recorded so nobody spends real time rediscovering them. All three are cheap to
 re-run if you doubt the result.
 
 **`RidgeClassifier` instead of `LogisticRegression`** (Albert's suggestion).
-Ridge is marginally better on rank quality alone -- general branch 0.9191 clean
-vs 0.9170, and a smaller drop, 0.0243 vs 0.0321. It still loses:
+**Superseded -- ridge was ADOPTED on 29 Aug, see 4c.** My original rejection
+here was right about the mechanism and wrong about the conclusion: I tested
+ridge at the default alpha and shipped raw, found it worse, and stopped. Albert
+tuned alpha to 0.001 and the branch genuinely improves; the scale objection
+below is real but it is fixable in one line, which I did not try.
 
-- No `predict_proba`. The deliverable is `pred` in [0,1] and the whole
-  operating-point / Platt / ECE apparatus is probabilistic. Ridge's
-  `decision_function` spans about +-2 and is not log-odds, so shipping it means
-  bolting Platt on top -- and Platt scaling *is* logistic regression.
-- `max(gen, tamp)` assumes both branches share a scale. Log-odds are that
-  scale; two independent ridge fits are not.
-- With the threshold re-picked on `calib_ood` for each, accuracy ties (0.7979
-  vs 0.7976) but **precision drops 0.8643 -> 0.8359 and FPR rises 0.1113 ->
-  0.1460** -- the exact axis section 5f.6 moved the other way.
-
-The useful part of the idea is more regularisation, and `C` is already tuned:
-C=0.1 -> 0.9043, **C=1.0 -> 0.9170**, C=10 -> 0.9164 (clean, so_fake_ood).
+The objection, kept because it is exactly what broke when ridge first landed:
+ridge decision values are not log-odds, `max(gen, tamp)` assumes both branches
+share a scale, and `predict.py` sigmoids against a fixed operating point. A raw
+ridge probe scores **0.5143 accuracy and 0.0561 recall** -- it stops detecting.
 
 **Patch-level self-consistency (3x3 multi-crop CLIP).** Was Tier 1 in
 `TODO-FACE.md` and the top of Albert's list; `PIPELINE.md` 4.5 called it the
@@ -495,6 +490,73 @@ inversion and the false-positive rate are one bug, not two**, and real-photo
 diversity should move both. Consistent with section 5g: adding a second real
 distribution to the tampered probe made COCO worse (13.6% -> 53.5%), i.e. the
 fix is many distributions, not two.
+
+### 4c. Ridge general probe, calibrated into its weights -- 29 Aug
+
+Albert's `general-spectral` branch, merged with a fix. `fit_general` is now
+`RidgeClassifier(alpha=0.001, solver="lsqr")` and `general.calibrate()` folds
+Platt scaling into the saved coefficients before `save()`.
+
+The fold is the whole trick. Platt is `p = sigmoid(A*z + B)` and `z = x@w + b`,
+so the calibrated logit is `x@(A*w) + (A*b + B)` -- still linear. It collapses
+into the two arrays already in `general.npz`, so `predict.py` is untouched, no
+new file ships, and `OPERATING_POINT` stays 0.766.
+
+```
+                              AUROC cl/worst   acc     prec    rec     F1     COCO
+logreg (what main shipped)    0.8997/0.8544  0.8178  0.8539  0.7674  0.8083   8.6%
+ridge, raw (what broke)       0.8738/0.8345  0.5143  0.6821  0.0561  0.1037   8.1%
+ridge + Platt fold            0.9085/0.8731  0.8247  0.8816  0.7507  0.8109   8.9%
+```
+
+Better AUROC, accuracy, precision and F1 than the logistic probe, at the same
+threshold. Costs 0.017 recall and 0.3pp of COCO false positives.
+
+**Alternatives measured.** A label-free moment-match of ridge's mean and sd onto
+the old logistic scale gets 0.9057/0.8683 -- within 0.005, and better on
+accuracy and F1. Platt was taken anyway: it wins the worst-case metric, which is
+the headline claim; it keeps precision higher; and it has a definition that
+stands alone, where moment-matching pins the probe to a legacy artifact that
+moves if the logistic probe is ever retrained. Matching onto the TAMPERED branch
+instead -- the intuitive move, since that is what `max` compares against -- is
+much worse at 0.8309/0.7722, because that branch is over-confident and makes a
+bad reference.
+
+Re-picking the threshold does not rescue the raw probe: at its own optimum
+(0.502) it reaches acc 0.8109 and F1 0.8121 but flags **25.3% of COCO**, the
+failure 5f.6 exists to prevent. The rescale is not polish, it is what makes the
+branch usable.
+
+`fusion.fit_branches()` now calls `fit_general` too. It was still building the
+general branch with `fit`, so the combiner table was comparing fusion against a
+probe nobody runs. With that fixed, `max` 0.9189/0.8921 vs fusion 0.9175/0.8905
+-- **the margin is down to +0.0014 from +0.0086**, so the "max beats fusion"
+claim is now thin and should be re-checked before it is repeated as settled.
+
+### 4d. Spectral branch is measured OUT of the combiner -- 29 Aug
+
+`quorum/detectors/spectral.py` now exists (Albert). It is the weakest branch by
+design, and its numbers are a result rather than a disappointment: classical
+frequency forensics reach 0.6736 clean and collapse to 0.5471 under `noise01`,
+where the CLIP probe holds 0.9245/0.9013 on the identical grid. That is the
+argument for the architecture.
+
+It must not enter the combiner, and this is now measured rather than assumed:
+
+```
+max(general, tampered)              clean 0.8997   worst 0.8532
+max(general, tampered, spectral)    clean 0.8868   worst 0.7770
+LR(general, tampered)               clean 0.9148   worst 0.8819
+LR(general, tampered, spectral)     clean 0.9073   worst 0.8729
+```
+
+It loses under `max`, which inherits the worst branch by construction, and still
+loses under a learned combiner fitted on the carve -- given its best shot.
+
+Two defects fixed on merge: `evaluate()` bypassed the `calib_ood` carve and read
+0.7362 clean against a true 0.6736; and the module now counts the 25 all-zero
+feature vectors in `spec_so_fake_ood` (all real images) that had been an open
+item since 27 Aug, instead of letting them show up as a shrug in the AUC.
 
 ### 5. Tooling
 
