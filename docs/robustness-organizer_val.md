@@ -35,17 +35,9 @@ resize025   0.9854 0.9109    0.5199    0.9002
 resize05    0.9844 0.9372    0.6170    0.8740
 ```
 
-![Robustness grid](figures/robustness.png)
+![Benchmarks](figures/benchmarks.png)
 
-_Same numbers as a heatmap, rows sorted by mean drop from clean. Regenerate with `python scripts/make_figures.py robustness`._
-
-## Where the decision is made
-
-AUROC above is threshold-free and says nothing about whether the shipped cut works. It did not: 0.5 was the sigmoid default and flagged a quarter of COCO photographs as AI. `predict.py` now cuts at an operating point picked on `calib_ood`.
-
-![Threshold sweep](figures/threshold.png)
-
-![Score separation](figures/separation.png)
+_This source against the So-Fake-OOD headline, general probe vs the shipped `max`. The other figures in `docs/figures` are built from So-Fake-OOD and are not shown here. Regenerate with `python scripts/make_figures.py benchmarks`._
 
 ## Combiners, on the full task
 

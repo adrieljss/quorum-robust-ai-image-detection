@@ -1,15 +1,16 @@
 """Regenerate docs/figures from cache. Everything here is computed, never drawn
 from a pasted number, so a figure cannot outlive the result it illustrates.
 
-    python scripts/make_figures.py            # all four
+    python scripts/make_figures.py            # all five
     python scripts/make_figures.py threshold  # just one
 
-Four figures, one argument each:
+Five figures, one argument each:
 
   threshold.png     0.5 was never chosen, and it is the wrong place to cut
   separation.png    why -- the real-image score mass sits on top of the old cut
   robustness.png    the 15-variant grid as a picture instead of a table
   generalisation.png  the tampered branch cannot recognise unfamiliar REAL photos
+  benchmarks.png    organizer set vs the headline, and what max() costs on it
 
 reliability.png is not built here -- it belongs to quorum/fusion.py, which owns
 calibration. Run `python -m quorum.fusion` for that one.
@@ -176,8 +177,8 @@ def fig_separation(D):
                  x=0.0, ha="left", y=1.0)
     fig.text(0.0, -0.03,
              "The real-image mass in both panels extends well past 0.5. Everything between the two "
-             "dashed lines was a false\naccusation at the old default — 34.6% of the COCO panel, "
-             "reduced to 8.6% at 0.766.",
+             f"dashed lines was a false\naccusation at the old default — {(pc >= OLD_THR).mean():.1%} of the COCO panel, "
+             f"reduced to {(pc >= NEW_THR).mean():.1%} at {NEW_THR}.",
              fontsize=8.2, color="#555C66", ha="left")
     save(fig, "separation.png")
 
@@ -213,7 +214,8 @@ def fig_robustness():
     fig.suptitle("Robustness grid — AUROC per branch under each transform",
                  fontsize=12.5, fontweight="bold", x=0.0, ha="left", y=1.02)
     fig.text(0.0, -0.015,
-             "Rows sorted by mean AUROC, so the transforms that actually hurt sink to the bottom. "
+             "Rows sorted by mean drop from clean, not raw AUROC — a raw mean just sorts them by "
+             "whatever spectral did.\nThe transforms that actually hurt sink to the bottom. "
              "The spectral column is the\nweak branch, not a broken measurement. The face column "
              "RISES under blur — that is shortcut learning, HANDOVER-MODELS §8.",
              fontsize=8.2, color="#555C66", ha="left")
@@ -252,11 +254,14 @@ def fig_generalisation(D):
     axes[1].set_ylabel("P(AI) on real photographs"); axes[1].set_ylim(0, 1)
     style(axes[1], "Score distribution on the same three sets")
 
-    fig.suptitle("On unfamiliar photography the tampered branch flags 10x more real images",
+    ratio = ((D["reals"]["coco"]["tampered"] >= .5).mean()
+             / max((D["reals"]["coco"]["general"] >= .5).mean(), 1e-9))
+    fig.suptitle(f"On unfamiliar photography the tampered branch flags {ratio:.0f}x more real images",
                  fontsize=12.5, fontweight="bold", x=0.0, ha="left", y=1.02)
     fig.text(0.0, -0.22,
              "Both probes train only on SID_Set reals. On COCO — ordinary photography neither has "
-             "seen — general holds at 2.4% while\ntampered fires on 24.2%. The middle pair is not "
+             f"seen — general holds at {(D['reals']['coco']['general'] >= .5).mean():.1%} while\n"
+             f"tampered fires on {(D['reals']['coco']['tampered'] >= .5).mean():.1%}. The middle pair is not "
              "the same story: So-Fake-OOD's reals are web-sourced and already processed,\nso both "
              "probes struggle and general struggles most. That set is harder, not more unseen.\n"
              "Because the shipped scorer is max(), it inherits whichever branch is worse on a "
@@ -266,15 +271,79 @@ def fig_generalisation(D):
     save(fig, "generalisation.png")
 
 
+def fig_benchmarks():
+    """Both eval sets, general alone vs the shipped max, clean and worst.
+
+    A dumbbell rather than bars on purpose: the interesting gaps are ~0.03 wide,
+    so the axis has to be truncated to show them, and a truncated bar chart lies
+    about ratios. Dots carry no area, so the same truncation is honest.
+    """
+    import pandas as pd
+    from sklearn.metrics import roc_auc_score
+
+    rows = {}
+    for src, label in (("organizer_val", "Organizer set\nDALL\u00b7E 3 + COCO val2017"),
+                       ("so_fake_ood", "So-Fake-OOD\nunseen generator families")):
+        X, R = load(src)
+        if "calib_ood" in set(R.split):                     # never score the carve
+            m = (R.split != "calib_ood").values
+            X, R = X[m], R[m].reset_index(drop=True)
+        g, t = probe("general", X), probe("tampered", X)
+        for scorer, v in (("general alone", g),
+                          ("max(general, tampered)  \u2014 shipped", np.maximum(g, t))):
+            a = pd.Series({var: roc_auc_score(R.label[k], v[k])
+                           for var, k in ((var, (R.variant == var).values)
+                                          for var in R.variant.unique())
+                           if R.label[k].nunique() == 2})
+            rows[(label, scorer)] = (a["clean"], a.min(), a.idxmin())
+
+    fig, ax = plt.subplots(figsize=(9.6, 4.2))
+    ticks, y = [], 0
+    for (label, scorer), (clean, worst, where) in rows.items():
+        c = BLUE if scorer.startswith("general") else RED
+        ax.plot([worst, clean], [y, y], lw=2.4, c=c, alpha=.45, zorder=1,
+                solid_capstyle="round")
+        ax.scatter([worst], [y], s=64, c="white", edgecolors=c, lw=1.8, zorder=3)
+        ax.scatter([clean], [y], s=64, c=c, zorder=3)
+        ax.text(clean + .004, y, f"{clean:.4f}", va="center", fontsize=8.4,
+                fontweight="bold", color=c)
+        ax.text(worst - .004, y, f"{worst:.4f}  ({where})", va="center", ha="right",
+                fontsize=8.0, color=c)
+        ticks.append((y, f"{label}\n{scorer}"))
+        y -= 1
+
+    ax.set_yticks([t[0] for t in ticks], [t[1] for t in ticks], fontsize=8.2)
+    lo = min(w for _, w, _ in rows.values())
+    ax.set_xlim(lo - 0.055, 1.025)      # room for the left-hand labels
+    ax.set_ylim(y + .5, .7)
+    ax.set_xlabel("AUROC   \u2014   hollow dot = worst variant, solid = clean")
+    # Verified equal to predict.score_embeddings() to 4dp. eval_grid.py's
+    # combiner table maxes the PLATT-CALIBRATED branches instead and reads
+    # 0.9114/0.8771 on so_fake_ood -- a different model, not this one.
+    style(ax, "The organizer benchmark against the headline")
+    fig.text(0.0, -0.20,
+             "The organizer set is the only externally-comparable number we get, and it is the "
+             "easiest of the two: DALL\u00b7E 3 is\na softer target than So-Fake-OOD's generator "
+             "families, so 0.9170 stays the headline claim.\n"
+             "On the organizer set the shipped max() is WORSE than the general probe alone. It "
+             "contains no locally-edited\nimages, so the tampered branch can only add false "
+             "positives there. max() still wins on the pooled task\n(FULL avg 0.9113 vs 0.8849), "
+             "which is why it ships \u2014 but the trade is real and belongs in the write-up.",
+             fontsize=8.2, color="#555C66", ha="left")
+    save(fig, "benchmarks.png")
+
+
 FIGS = {"threshold": fig_threshold, "separation": fig_separation,
-        "robustness": fig_robustness, "generalisation": fig_generalisation}
+        "robustness": fig_robustness, "generalisation": fig_generalisation,
+        "benchmarks": fig_benchmarks}
 
 if __name__ == "__main__":
     want = [a for a in sys.argv[1:] if not a.startswith("-")] or list(FIGS)
     bad = [w for w in want if w not in FIGS]
     if bad:
         raise SystemExit(f"unknown figure(s) {bad}; choose from {list(FIGS)}")
-    D = populations() if any(w != "robustness" for w in want) else None
+    NO_DATA = {"robustness", "benchmarks"}
+    D = populations() if any(w not in NO_DATA for w in want) else None
     for w in want:
         print(f"{w}:")
-        FIGS[w]() if w == "robustness" else FIGS[w](D)
+        FIGS[w]() if w in NO_DATA else FIGS[w](D)

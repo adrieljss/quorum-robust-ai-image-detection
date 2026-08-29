@@ -169,15 +169,25 @@ def main(source, do_comb):
         # contradicted the table three lines above it.
         BLUR_CAVEAT if blur_rises(df) else "",
         "\n## Full grid\n", fence, df.to_string(float_format="%.4f"), fence,
-        "\n![Robustness grid](figures/robustness.png)\n\n_Same numbers as a "
-        "heatmap, rows sorted by mean drop from clean. Regenerate with "
-        "`python scripts/make_figures.py robustness`._\n",
-        "\n## Where the decision is made\n\nAUROC above is threshold-free and "
-        "says nothing about whether the shipped cut works. It did not: 0.5 was "
-        "the sigmoid default and flagged a quarter of COCO photographs as AI. "
-        "`predict.py` now cuts at an operating point picked on `calib_ood`.\n\n"
-        "![Threshold sweep](figures/threshold.png)\n\n"
-        "![Score separation](figures/separation.png)\n",
+        # Every figure under docs/figures except benchmarks.png is built from
+        # so_fake_ood. Embedding them under another source captioned "same
+        # numbers as a heatmap" was simply false -- organizer_val showed the
+        # So-Fake-OOD grid and claimed it as its own.
+        ("\n![Robustness grid](figures/robustness.png)\n\n_Same numbers as a "
+         "heatmap, rows sorted by mean drop from clean. Regenerate with "
+         "`python scripts/make_figures.py robustness`._\n"
+         "\n## Where the decision is made\n\nAUROC above is threshold-free and "
+         "says nothing about whether the shipped cut works. It did not: 0.5 was "
+         "the sigmoid default and flagged a quarter of COCO photographs as AI. "
+         "`predict.py` now cuts at an operating point picked on `calib_ood`.\n\n"
+         "![Threshold sweep](figures/threshold.png)\n\n"
+         "![Score separation](figures/separation.png)\n"
+         if source == "so_fake_ood" else
+         "\n![Benchmarks](figures/benchmarks.png)\n\n_This source against the "
+         "So-Fake-OOD headline, general probe vs the shipped `max`. The other "
+         "figures in `docs/figures` are built from So-Fake-OOD and are not "
+         "shown here. Regenerate with `python scripts/make_figures.py "
+         "benchmarks`._\n"),
     ]
     if comb is not None:
         parts += [
