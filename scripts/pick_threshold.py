@@ -1,5 +1,10 @@
 """INVALID since 30 Aug -- do not trust this script's number.
 
+FACE-BLIND since 31 Aug as well. The shipped scorer maxes in a third branch that
+needs pixels, so nothing derived from cached 768-d embeddings can reproduce it.
+This script understates predict.py by ~0.0013 AUROC.
+INVALID since 30 Aug -- do not trust this script's number.
+
 It picks the operating point on calib_ood, which was held out when this was
 written. `python -m quorum.detectors.general --plus` moved calib_ood into the
 TRAINING set (docs/ERROR_ANALYSIS.md 3.1), so this now scores a model on its own

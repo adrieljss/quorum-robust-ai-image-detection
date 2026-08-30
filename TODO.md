@@ -393,6 +393,20 @@ Feeds Innovation & Problem Insight at 20%. Not an afterthought.
 
 ---
 
+### Open, found 31 Aug — the figures and threshold script are FACE-BLIND
+
+- [ ] **Wire the `face_*` caches into `make_figures.py` and `pick_threshold.py`.**
+      `predict.py` maxes in a third branch as of 31 Aug, and it needs PIXELS, so
+      nothing built from cached 768-d embeddings can reproduce the shipped score.
+      Both scripts now understate it by ~0.0013 AUROC and say so in their
+      docstrings, but a stated inconsistency is still an inconsistency, and this
+      is the FOURTH time a private copy of the scoring path has drifted from
+      `score_embeddings` in this repo. The caches exist (`face_so_fake_ood` etc,
+      all 15 variants), so it is a join on (image_id, variant), not new compute
+- [ ] `predict.self_check` now asserts the face path directly, so the green tick
+      means what it says. Its pick_threshold assertion is explicitly scoped to
+      "the shared component agrees", NOT "the scripts reproduce predict.py"
+
 ### Open, found 30 Aug — the tampered branch fits a dataset, not a concept
 
 - [ ] **Identify the SID_Set tampered artifact.** Editing moves the branch +0.888

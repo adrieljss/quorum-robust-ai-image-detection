@@ -5,6 +5,16 @@
 `pred` is P(AI-generated) in [0,1]. Two fields, no more -- the demo's richer
 schema stays in the demo.
 
+THREE branches vote, not two: max(general, 1.25*tampered, face). The face branch
+joined on 31 Aug. It was excluded for weeks on an aggregate-AUROC argument that
+turned out to measure the wrong thing -- with 27% face coverage a real gain on
+faces dilutes to +0.001 overall. Counting RESCUES instead: it catches 442 of the
+1,891 AI faces max() misses on So-Fake-OOD (23%) while newly flagging 58 of 8,209
+real faces, a 7.6:1 ratio, and it does not hurt on ANY of the 15 degradation
+variants on either eval set. At matched false positives that is +0.96pp recall.
+It does NOT help on GPT-image-2, whose faces it scores 0.02-0.43; it carries the
+same recency blind spot as everything else here.
+
 The score is shifted so that **0.5 is the operating point**. It was not before:
 0.5 is the sigmoid's default, nobody chose it, and on held-out test_ood it cost
 0.09 precision and flagged 27.6% of COCO photographs as AI-generated. The shift
@@ -14,7 +24,7 @@ change; only a threshold-based read of `pred` moves.
 It is a TRADE, not a free win, and both halves belong here:
 
     test_ood clean          acc    prec  recall      F1   COCO FP  tamp rec
-      0.8050 (ships)      0.836   0.901   0.749   0.818      8.9%     0.753
+      0.8092 (ships)      0.840   0.902   0.759   0.824      8.9%     0.757
       0.8523 (cv)         0.821   0.926   0.698   0.796      6.3%     0.704
     the model this REPLACED, at its own operating point
       0.766               0.825   0.882   0.751   0.811      8.9%     0.746
@@ -58,8 +68,10 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from quorum.detectors.general import MODEL, MODEL_TAMPERED
+from quorum.detectors.general import MODEL, MODEL_TAMPERED, MODELS
 from quorum.embed import Embedder
+
+MODEL_FACE = MODELS / "face.npz"
 
 EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 BATCH = 64
@@ -81,7 +93,7 @@ BATCH = 64
 # on calib_ood as if that were held out, and since `general --plus` that set is
 # TRAINING data. Its number is contaminated. Fix it or ignore it; do not paste
 # its output here.
-OPERATING_POINT = 0.8050
+OPERATING_POINT = 0.8092
 SHIFT = float(np.log(OPERATING_POINT / (1 - OPERATING_POINT)))
 
 # How loudly the tampered branch speaks inside max(). NOT a free parameter that
@@ -126,7 +138,49 @@ def load_probes():
     return probes
 
 
-def score_embeddings(v, probes=None) -> np.ndarray:
+def load_face():
+    """(w, b, px_mu, px_sd) for the 769-d face probe, or None if it is absent.
+
+    Not part of `probes`: it eats 768 embedding dims PLUS a standardised
+    log2(face_px), so it cannot ride the same matrix multiply.
+    """
+    if not MODEL_FACE.exists():
+        return None
+    d = np.load(MODEL_FACE)
+    return (d["w"].ravel(), float(d["b"].ravel()[0]),
+            float(d["px_mu"]), float(d["px_sd"]))
+
+
+def face_score(imgs, emb, face_model) -> np.ndarray:
+    """Face-branch probability per image on the SHIPPED scale, 0.0 where no face.
+
+    Zero, not 0.5: this feeds a max(), where an absent branch must not be able to
+    raise the score. (quorum/fusion.py uses 0.5 for the same quantity because it
+    feeds a LEARNED combiner with a face_present indicator beside it, which makes
+    the fill arbitrary there and not here.)
+
+    Crops go through in ONE batch. Detection is the cost, not the embedding.
+    """
+    from quorum.features import face_crop
+
+    out = np.zeros(len(imgs), np.float32)
+    if face_model is None:
+        return out
+    w, b, mu, sd = face_model
+    crops, idx, px = [], [], []
+    for i, im in enumerate(imgs):
+        c, p = face_crop(im)
+        if c is not None:
+            crops.append(c); idx.append(i); px.append(max(p, 1.0))
+    if not crops:
+        return out
+    V = emb.embed_batch(crops)
+    feat = np.column_stack([V, (np.log2(np.asarray(px)) - mu) / sd])
+    out[idx] = 1 / (1 + np.exp(-(feat @ w + b - SHIFT)))
+    return out
+
+
+def score_embeddings(v, probes=None, face=None) -> np.ndarray:
     """(n, 768) CLIP embeddings -> P(AI). THE definition of the shipped score.
 
     Every evaluation must call this rather than re-deriving it. scripts/ has
@@ -138,7 +192,11 @@ def score_embeddings(v, probes=None) -> np.ndarray:
     # sigmoid is monotone, but nothing saturates to exactly 0 or 1 first, so the
     # shift cannot hit an infinity.
     z = np.max([v @ w + b for w, b in probes], axis=0)
-    return 1 / (1 + np.exp(-(z - SHIFT)))
+    p = 1 / (1 + np.exp(-(z - SHIFT)))
+    # The face branch arrives already on this scale because it cannot share the
+    # matrix multiply above. Absent -> the caller passes nothing and the score is
+    # exactly what it was before the branch existed.
+    return p if face is None else np.maximum(p, face)
 
 
 def find_images(paths_root) -> list:
@@ -227,12 +285,12 @@ def score_all(paths, keep_embeddings=False):
     which scores tampered images BELOW real ones (AUC 0.37) because a
     locally-edited photo is globally authentic.
     """
-    probes = load_probes()
+    probes, fm = load_probes(), load_face()
     emb, out, vecs = Embedder(), [], []
     for i in range(0, len(paths), BATCH):
         imgs = [Image.open(p).convert("RGB") for p in paths[i:i + BATCH]]
         V = emb.embed_batch(imgs)
-        out.append(score_embeddings(V, probes))
+        out.append(score_embeddings(V, probes, face_score(imgs, emb, fm)))
         if keep_embeddings:
             # Handing these back is not an optimisation, it is a CORRECTNESS fix.
             # Re-embedding one image to report its branch scores gave a different
@@ -320,9 +378,30 @@ def self_check():
     real = score_embeddings(v / np.linalg.norm(v, axis=1, keepdims=True), probes)
     assert real.shape == (5,) and ((real >= 0) & (real <= 1)).all(), real
 
+    # -- the FACE branch is loadable and 769-d. It cannot ride `probes` and is
+    # maxed in separately, so a missing or reshaped face.npz has to fail here
+    # rather than silently reverting the scorer to two branches.
+    fm = load_face()
+    assert fm is not None, "face.npz missing -- the shipped scorer is 3 branches"
+    assert fm[0].shape == (d + 1,), f"face probe is {fm[0].shape}, expected {(d+1,)}"
+    assert np.allclose(score_embeddings(v, flat), 0.5), "face=None must be a no-op"
+    hi = np.full(len(v), 0.9)
+    assert np.allclose(score_embeddings(v, flat, face=hi), 0.9), "face must max in"
+    lo = np.zeros(len(v))
+    assert np.allclose(score_embeddings(v, flat, face=lo),
+                       score_embeddings(v, flat)), "absent face must contribute 0"
+
     # -- no private copy has drifted. pick_threshold scores the UNSHIFTED value on
     # purpose (it is picking the cut), so the two differ by exactly SHIFT in logit
     # space and by nothing else.
+    #
+    # NOTE this compares the EMBEDDING-ONLY path. Since 31 Aug the shipped score
+    # also maxes in the face branch, which needs PIXELS and so cannot be
+    # reproduced from a 768-d vector. pick_threshold.py and make_figures.py are
+    # therefore both face-blind: they understate the shipped scorer by ~0.0013
+    # AUROC and their thresholds are picked on the two-branch score. Wiring the
+    # face_* caches into both is the fix; until then this assertion means "the
+    # shared component agrees", NOT "the scripts reproduce predict.py".
     from pick_threshold import shipped as pt_shipped
     u = v / np.linalg.norm(v, axis=1, keepdims=True)
     q = np.clip(pt_shipped(u), 1e-12, 1 - 1e-12)
@@ -357,7 +436,8 @@ def self_check():
         assert json.loads(json.dumps(r)) == r, "not JSON-round-trippable"
 
     print(f"predict.py ok: operating point {OPERATING_POINT} -> 0.5 "
-          f"(shift {SHIFT:.4f}), {len(probes)} probes, {len(EXTS)} extensions")
+          f"(shift {SHIFT:.4f}), {len(probes) + 1} branches "
+          f"({', '.join(BRANCH_NAMES)}, face), {len(EXTS)} extensions")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,12 @@
-"""Regenerate docs/figures from cache. Everything here is computed, never drawn
+"""FACE-BLIND since 31 Aug. predict.py maxes in a third branch, the face probe,
+which needs PIXELS and cannot be recomputed from the cached 768-d embeddings
+these figures are built from. Every AUROC drawn here understates the shipped
+scorer by ~0.0013, and the threshold line is imported from predict.py so it IS
+the shipped cut. Wiring the face_* caches in is the fix. Stated rather than
+quietly tolerated, because this file's whole promise is that a figure cannot
+outlive the result it illustrates.
+
+Regenerate docs/figures from cache. Everything here is computed, never drawn
 from a pasted number, so a figure cannot outlive the result it illustrates.
 
     python scripts/make_figures.py            # all six
