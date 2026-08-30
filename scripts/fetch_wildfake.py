@@ -41,8 +41,20 @@ WORKERS = 8
 QUARANTINE = "DALLE/Advanced/DALLE3"
 
 
-def check_prefix(prefix, out):
-    """Refuse to pull the quarantined subset anywhere but its own eval folder."""
+def check_prefix(prefix, out, url=""):
+    """Refuse to pull anything the brief forbids training on.
+
+    Two forbidden sets, and this is the only place that knows about either:
+    WildFake's DALL-E Advanced subset, and COCO val2017. The val2017 check earns
+    its keep now that --url makes this a general zip-subset fetcher -- one typo
+    of "val2017" for "train2017" would silently poison the only unseen-photography
+    number we have.
+    """
+    if "val2017" in prefix or "val2017" in url:
+        raise SystemExit(
+            "REFUSED: COCO val2017 is the organizer validation set. The brief "
+            "says 'Do not use the following data during training'. Use "
+            "train2017, which is a different 118k images and is permitted.")
     if prefix.startswith(QUARANTINE) and Path(out).resolve() != OUT.resolve():
         raise SystemExit(
             f"REFUSED: {prefix!r} is the organizer validation subset. The brief "
@@ -61,7 +73,7 @@ def members(prefix=PREFIX, url=URL):
 
 
 def main(prefix=PREFIX, url=URL, out=OUT, limit=0, seed=0):
-    check_prefix(prefix, out)
+    check_prefix(prefix, out, url)
     names = members(prefix, url)
     if limit and len(names) > limit:
         # Deterministic subsample: a family contributes DIVERSITY, and past a
@@ -106,6 +118,11 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--zip", default=ZIP, help="path inside the ModelScope repo")
+    ap.add_argument("--url", default=None,
+                    help="full URL of ANY range-serving zip, overriding --zip. "
+                         "The central directory is read from the tail, so this "
+                         "pulls a subset without downloading the archive "
+                         "(COCO train2017 is 18GB; 5k images is ~700MB).")
     ap.add_argument("--prefix", default=PREFIX, help="prefix INSIDE the zip")
     ap.add_argument("--out", default=None, help="destination dir")
     ap.add_argument("--limit", type=int, default=0,
@@ -115,7 +132,7 @@ if __name__ == "__main__":
     ap.add_argument("--dirs", action="store_true",
                     help="list the top prefixes inside the zip and exit")
     a = ap.parse_args()
-    url = BASE + a.zip
+    url = a.url or (BASE + a.zip)
     out = Path(a.out) if a.out else OUT
 
     if a.dirs:                        # what families does this zip actually hold?

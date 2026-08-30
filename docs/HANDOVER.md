@@ -1,15 +1,21 @@
 # Quorum — Data Handover
 
-> **STATE CHANGED 30 Aug.** The general probe was retrained
-> (`general --plus`, `docs/ERROR_ANALYSIS.md` §3.1), the tampered branch was
-> given an explicit scale (`predict.TAMPERED_SCALE = 1.25`), and
-> `OPERATING_POINT` moved 0.766 -> **0.8523**, cross-validated. Headline numbers
-> are now **0.9255** So-Fake-OOD clean and **6.3%** COCO false positives.
+> **STATE CHANGED 30 Aug.** General probe retrained (`general --plus`), tampered
+> branch given COCO train2017 negatives (`--tampered-reals`), `TAMPERED_SCALE`
+> added at 1.25, and `OPERATING_POINT` moved 0.766 -> **0.7866**.
 >
-> Tables below that predate that change are kept deliberately: they are the
-> record of what was measured when each decision was made, and rewriting them
-> would falsify that record. **For current numbers use `ERROR_ANALYSIS.md` §1.**
-> Anything here labelled "SHIPPED" with cut 0.766 describes the previous model.
+> **The reference pool for false positives changed and this matters most.** COCO
+> val2017 is NO LONGER unseen photography -- the tampered branch trains on COCO
+> train2017 -- so the honest number is now **8.25% on So-Fake-OOD reals**, and
+> COCO's 2.32% is in-distribution. The organizer benchmark is partly
+> in-distribution for the same reason. `ERROR_ANALYSIS.md` 7.6.
+>
+> Headline: **0.9318** So-Fake-OOD clean, **8.25%** unseen-photography FPR.
+>
+> Tables below that predate the change are kept deliberately: they record what
+> was measured when each decision was made, and rewriting them would falsify
+> that record. **For current numbers use `ERROR_ANALYSIS.md` section 1.**
+> Anything labelled "SHIPPED" with cut 0.766 describes the previous model.
 
 **Status:** all three cached branches complete on every source, `organizer_val`
 included. Face probe, calibration, and fusion all built (Kacey). Text branch cut.

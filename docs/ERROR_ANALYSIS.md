@@ -4,7 +4,7 @@ Required deliverable #5. Every number here is measured, none is asserted, and
 each one names the script that reproduces it.
 
 Scores come from `predict.score_embeddings` — the shipped scorer,
-`max(general, 1.25 * tampered)` at `OPERATING_POINT = 0.8523`, so the threshold
+`max(general, 1.25 * tampered)` at `OPERATING_POINT = 0.7866`, so the threshold
 below is always 0.5 on the emitted `pred`. Both constants changed on 30 Aug when
 the probe was retrained (section 3.1); the figures import them from `predict.py`
 rather than pasting them, so a figure cannot outlive the model it illustrates.
@@ -15,14 +15,19 @@ rather than pasting them, so a figure cannot outlive the model it illustrates.
 
 | eval set | n | AUROC | ACC | PREC | RECALL | F1 | FPR | FNR |
 |---|---|---|---|---|---|---|---|---|
-| **So-Fake-OOD clean** *(headline)* | 4,198 | 0.9255 | 0.8204 | 0.9255 | 0.6974 | 0.7954 | 0.0563 | 0.3026 |
-| So-Fake-OOD, all 15 variants | 62,970 | 0.9193 | 0.7987 | 0.9276 | 0.6485 | 0.7634 | 0.0508 | 0.3515 |
-| organizer set, clean | 8,719 | 0.9719 | 0.9221 | 0.9146 | 0.9016 | 0.9081 | 0.0626 | 0.0984 |
-| organizer set, all 15 variants | 130,785 | 0.9589 | 0.8992 | 0.8945 | 0.8658 | 0.8799 | 0.0759 | 0.1342 |
-| SID_Set tampered, clean | 3,595 | 0.9135 | 0.8428 | 0.8991 | 0.7018 | 0.7883 | 0.0563 | 0.2982 |
-| SID_Set tampered, all 15 | 24,581 | 0.8924 | 0.6573 | 0.9917\* | 0.6306 | 0.7710 | 0.0563 | 0.3694 |
-| **FOREIGN tampered, clean** | 5,096 | **0.7260** | 0.5412 | 0.8686 | **0.2600** | 0.4002 | 0.0563 | 0.7400 |
-| **FOREIGN tampered, all 15** | 47,096 | **0.7348** | 0.3024 | 0.9905\* | 0.2726 | 0.4275 | 0.0563 | 0.7274 |
+| **So-Fake-OOD clean** *(headline)* | 4,198 | 0.9318 | 0.8423 | 0.9031 | 0.7674 | 0.8297 | 0.0825 | 0.2326 |
+| So-Fake-OOD, all 15 variants | 62,970 | 0.9258 | 0.8276 | 0.9109 | 0.7268 | 0.8085 | 0.0713 | 0.2732 |
+| organizer set, clean †| 8,719 | 0.9908 | 0.9584 | 0.9677 | 0.9336 | 0.9503 | 0.0232 | 0.0664 |
+| organizer set, all 15 † | 130,785 | 0.9836 | 0.9405 | 0.9494 | 0.9090 | 0.9288 | 0.0360 | 0.0910 |
+| SID_Set tampered, clean | 3,595 | 0.9004 | 0.8184 | 0.8549 | 0.6798 | 0.7573 | 0.0825 | 0.3202 |
+| SID_Set tampered, all 15 | 24,581 | 0.8714 | 0.6301 | 0.9874\* | 0.6033 | 0.7490 | 0.0825 | 0.3967 |
+| **FOREIGN tampered, clean** | 5,096 | **0.7334** | 0.5679 | 0.8488 | **0.3237** | 0.4686 | 0.0825 | 0.6763 |
+| **FOREIGN tampered, all 15** | 47,096 | **0.7441** | 0.3610 | 0.9887\* | 0.3350 | 0.5005 | 0.0825 | 0.6650 |
+
+† **Partly in-distribution since 30 Aug.** The organizer set's real half is COCO
+val2017, and the tampered branch now trains on COCO *train2017* (section 7.6).
+Different images, zero overlap, permitted by the brief -- but the same corpus, so
+0.9908 is no longer the externally-comparable number it was. Do not headline it.
 
 \* Those rows pit thousands of edited images against 2,096 reals. Precision and
 accuracy there are imbalance artifacts; only AUROC, FPR and recall mean anything.
@@ -42,12 +47,16 @@ val2017 -- one generator against one photo corpus -- and the brief states it
 chosen to control:
 
 ```
-COCO val2017 reals, clean          n= 5,000    FPR  6.26%
-COCO val2017 reals, all 15 var     n=75,000    FPR  7.59%
+So-Fake-OOD reals, clean   n=2,096   FPR  8.25%   <- THE HONEST NUMBER
+COCO val2017 reals, clean  n=5,000   FPR  2.32%   in-distribution, see 7.6
+COCO val2017, all 15 var   n=75,000  FPR  3.60%   in-distribution
 ```
 
-Both improved from 8.90% / 10.02% when the probe was retrained on 30 Aug
-(section 3.1) and the operating point re-derived by cross-validation.
+**The reference pool changed on 30 Aug and this is the important line in the
+document.** COCO val2017 used to be our unseen-photography number. It is not any
+more -- the tampered branch trains on COCO train2017, so 2.32% is in-distribution
+and flattering. **So-Fake-OOD reals are now the honest pool**, nothing trains on
+them, and 8.25% is the number to quote. The operating point is anchored to it.
 
 ---
 
@@ -280,20 +289,28 @@ pixels are still on disk. Regenerate with `python scripts/error_cases.py`.
 
 | # | image | pred | general | tampered | hypothesis |
 |---|---|---|---|---|---|
-| 1 | `000000006460.jpg` | 0.97 | −2.7 | **+5.0** | B&W surf photo with a large **"STB" graphic watermark** and a "© ZACK GINGG" byline composited on |
-| 2 | `000000338191.jpg` | 0.96 | +1.5 | **+4.7** | **Nine-photo collage** of fire hydrants with hard black borders |
-| 3 | `000000192191.jpg` | 0.92 | −1.3 | **+3.7** | Kitchen photo containing a **printed pizza-box lid** — a flat, saturated, machine-made graphic inside a natural scene |
-| 4 | `000000314182.jpg` | 0.92 | −0.6 | **+3.8** | Flash-lit food bowls on white tile. The odd one out: no composite. Likely read as studio/render from the blown highlights and flat ground |
-| 5 | `000000435081.jpg` | 0.89 | −0.2 | **+3.5** | **Sixteen-photo collage** of miniature clay food, plus a "PetitPlat" watermark. Subject matter is also genuinely artificial-looking |
+| 1 | `000000338191.jpg` | 0.96 | +1.7 | **+4.2** | **Nine-photo collage** of fire hydrants with hard black borders |
+| 2 | `000000006460.jpg` | 0.94 | −2.5 | **+3.8** | B&W surf photo with a large **"STB" graphic watermark** and a "© ZACK GINGG" byline composited on |
+| 3 | `000000472375.jpg` | 0.87 | −2.7 | **+2.8** | Dog in a helmet inside a **decorative Instagram-style frame** — white border, green corner triangles |
+| 4 | `000000314182.jpg` | 0.85 | −1.4 | **+2.5** | Flash-lit food bowls on white tile. The odd one out: no composite. Likely read as studio/render from the blown highlights and flat ground |
+| 5 | `000000435081.jpg` | 0.84 | +0.4 | **+2.5** | **Sixteen-photo collage** of miniature clay food, plus a "PetitPlat" watermark. Subject matter is also genuinely artificial-looking |
+
+Re-measured after section 7.6. Four of the five survived the COCO-negatives
+retrain -- their scores fell (0.97/0.96/0.92/0.92/0.89 before) but they are still
+the most stably wrong images in the set, and the one that changed was replaced by
+another composite. The failure mode is not something 5,000 COCO negatives fixed.
 
 **These are one failure mode, not five.** Four of the five contain a region that
 did not come from the camera — a watermark, a collage border, a printed
 graphic. And the branch attribution is unambiguous:
 
 ```
-313 / 5,000 = 6.3% of COCO photographs are flagged
-  the tampered branch is the higher of the two in 96.5% of them
-  the general branch alone would flag only 0.4%
+116 / 5,000 = 2.3% of COCO photographs are flagged
+  the tampered branch is the higher of the two in 77.6% of them
+  the general branch alone would flag only 0.6%
+
+  (measured AFTER section 7.6 put COCO train2017 into the branch's negatives,
+   so this is in-distribution. Before that change it was 8.9% and 95.9%.)
 ```
 
 **The tampered branch is not malfunctioning. It is answering its question
@@ -349,13 +366,21 @@ moves these metrics by more than a rounding error.
 | cut | ACC | PREC | RECALL | F1 | COCO FP |
 |---|---|---|---|---|---|
 | 0.500 (sigmoid default) | 0.8306 | 0.7840 | 0.9134 | 0.8438 | 26.5% |
-| **0.8523 (shipped)** | 0.8204 | **0.9255** | 0.6974 | 0.7954 | **6.3%** |
+| **0.8057 (shipped)** | 0.8394 | **0.9010** | 0.7488 | **0.8179** | **8.9%** |
+| 0.8523 (cross-validated) | 0.8204 | 0.9255 | 0.6974 | 0.7954 | 6.3% |
 
-Precision +0.14 and false accusations cut **4.2x**, paid for with −0.22 recall
-and −0.048 F1. That is a steeper trade than the previous probe made (+0.11
-precision for −0.14 recall), because the cross-validated cut sits further right
-than the old hand-picked 0.766. Section 3.1 gives the alternative cut, 0.8057,
-which holds the old policy instead and strictly dominates the model it replaced.
+**The last two rows are the live decision.** Both are defensible and one line
+apart. 0.8523 is derived without reading any evaluation set; 0.8057 holds the
+project's stated false-positive budget constant across the model change and buys
+back **5.1pp of FNR** (30.3% -> 25.1%) plus 0.022 F1 for 2.6pp of false
+accusations.
+
+We ship 0.8057, decided 30 Aug: a detector that misses 30% of fakes is a filter,
+not a guarantee, and unlike a false positive -- which a reviewer dismisses in
+seconds -- a missed fake is never surfaced by anything. The cost is that the cut
+reads COCO to place itself, so it is a preserved policy rather than an
+independent derivation. Say that plainly rather than implying otherwise.
+
 The premise is that at a realistic base
 rate most uploads are genuine, so a libelled photograph is the expensive error,
 and F1 weights a missed fake and a libelled photograph equally. Argue with the
@@ -507,6 +532,63 @@ Reproduce: `scratchpad/tamp_transfer.py`. The set is `so_fake_tampered_eval`,
 
 ---
 
+**7.6 COCO train2017 as tampered-branch negatives: shipped, with a caveat that
+is bigger than the gain.**
+
+Section 5 found our false positives are watermarks, collages and printed
+graphics inside real photographs, and section 7.5 found the branch fits corpora
+rather than concepts. Both point the same way: give it negatives from the corpus
+the false positives come from. COCO train2017 is permitted (the brief excludes
+only val2017), and 5,000 images were pulled by HTTP range extraction from the
+18GB zip -- `scripts/fetch_wildfake.py --url`, which now hard-refuses any prefix
+containing `val2017`.
+
+The headline looks spectacular and is mostly an illusion:
+
+| real pool | before | after | change |
+|---|---|---|---|
+| COCO val2017 *(same corpus now)* | 8.86% | **2.18%** | −6.68pp |
+| **So-Fake-OOD reals** *(THE CONTROL)* | 8.25% | **7.20%** | **−1.05pp** |
+| SID_Set reals *(always trained on)* | 1.03% | 0.56% | −0.46pp |
+
+**Six sevenths of the gain is corpus memorisation.** The control -- the one real
+pool nothing trains on -- moved 1.05pp. Anyone quoting 2.18% as a
+false-positive rate without saying we trained on COCO train2017 is misleading
+their reader.
+
+At **matched false positives on the control pool**, which is the only fair
+comparison:
+
+| | control FPR | COCO FP | SID tamp recall | foreign tamp recall | OOD recall | OOD AUROC |
+|---|---|---|---|---|---|---|
+| before | 8.25% | 8.90% | **75.3%** | 31.5% | 74.9% | 0.9255 |
+| after | 8.25% | 2.32% | 68.0% | **32.4%** | **76.7%** | **0.9318** |
+
+Shipped on three grounds, none of them the 2.18%:
+
+1. **The honest gains are real if small** — +0.0063 AUROC, +1.8pp synthetic
+   recall, +1.05pp on unseen-photography false positives.
+2. **The apparent cost is on a contaminated metric.** SID tampered recall drops
+   7.3pp, but 7.5 showed that number largely reads a SID_Set construction
+   artifact. The *honest* edit metric, foreign tampered recall, went **up**, and
+   the SID/foreign ratio narrowed 2.39 → 2.10 — weak evidence the branch leans
+   less on the artifact than it did.
+3. **It is the exact inverse of §8.5, which is the strongest confirmation of 7.5
+   we have.** Generic real diversity made COCO false positives 4x *worse*;
+   targeted same-corpus negatives made them 4x *better*. A branch that fit a
+   concept would not care this much where its negatives came from. One that fits
+   corpora would behave exactly like this.
+
+**What it cost, stated plainly:** COCO val2017 is no longer an unseen-photography
+set, so the organizer benchmark is partly in-distribution and the headline FPR
+moves to So-Fake-OOD reals. That also broke the operating point's anchor -- 0.8057
+had been chosen to hold COCO at 8.9% -- so it was re-anchored to 8.25% on the
+control pool, giving **0.7866**. Same policy, honest pool, and it happened to buy
+FNR 25.4% → 23.3%. Reproduce: `scratchpad/coco_neg.py`, `coco_control.py`,
+`coco_fair.py`.
+
+---
+
 ## 8. What we tried that did not work
 
 Negative results, kept because they are the evidence that the shipped design is
@@ -526,6 +608,22 @@ a decision rather than a default.
 | 10 | Per-generator specialist zoo | Five one-generator probes combined by `max()`: **0.9042** against one pooled probe's **0.9444** on identical rows. Loses by 0.040, and loses *most* on GPT-image-2 (0.763 vs 0.848) — the generator specialists were supposed to help |
 | 11 | Nonlinear head (MLP-64) on the pooled data | 0.9425 against linear's 0.9444, with double the COCO false positives. Tests the same premise as #10 from the other side: one linear boundary is **not** the bottleneck, data breadth is |
 | 12 | A second foreign dataset (Midjourney, 1,500 imgs) | +0.0307 on the organizer set, **−0.0013** on So-Fake-OOD. Content matching, not artifact learning — §3.2 |
+| 13 | Per-content-bucket thresholds | Two objectives, both fail. Accuracy-optimal per bucket: FNR 30.69% against a global cut's 30.26% at matched FPR. Equal-FPR per bucket: **34.97%**, worse by 4.7pp. See below |
+
+**§8.13 is worth stating as a principle: a threshold cannot fix an AUROC gap.**
+§4 shows text-heavy images at 53.1% FNR / 1.0% FPR against faces at 21.5% /
+1.5%, which looks like a correctable score bias. It is not. Per-bucket AUROC is
+0.9112 for text-heavy and 0.9764 for faces -- most of that FNR spread is a
+**separability** difference, not a calibration one. Per-bucket thresholds slide
+each bucket along its own ROC curve; they cannot change the curves.
+
+Equal-FPR fails hardest, and instructively: forcing every bucket to the same
+false-positive rate spends the FP budget in exactly the buckets whose ROC is
+shallowest, so each false accusation buys back the fewest missed fakes. The
+optimum equalises *marginal* FN-per-FP, and a single global cut is already close
+to that. Fixing text-heavy needs a better representation, not a better cut --
+which puts it with §4.5 multi-crop, not in the free tier.
+Reproduce: `scratchpad/bucket_thr.py`, `scratchpad/bucket2.py`.
 
 **§8.10 and §8.11 together are the answer to "why not a mixture of experts?"**
 Splitting by *generator* starves each slice of the shared notion of "synthetic"
@@ -573,6 +671,13 @@ Reproduce: `scratchpad/patch_build.py`, `patch_eval.py`.
   cannot see a hard-pasted foreign cell it will never see an inpaint. Now that
   `so_fake_tampered_eval` exists the patch gate could be re-run against real
   foreign edits, and has not been.
+- **COCO val2017 is no longer an unseen-photography set.** Since section 7.6 the
+  tampered branch trains on COCO train2017. Different images, zero overlap,
+  permitted -- but the same corpus, so every COCO false-positive number in this
+  document is in-distribution, and so is the organizer benchmark's real half.
+  The unseen-photography claim now rests on So-Fake-OOD reals alone, a single
+  2,096-image pool. That is thinner evidence than we had before and it is the
+  price of section 7.6.
 - **The SID_Set artifact in 7.5 is inferred, not identified.** The evidence that
   one exists is strong -- a 10x difference in edit response and near-perfect
   in-corpus separation on a hard task -- but we have not seen the pixels, so we

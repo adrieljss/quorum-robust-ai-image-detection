@@ -140,7 +140,7 @@ def save(clf, path=MODEL):
     np.savez(path, w=np.asarray(w).reshape(1, -1), b=np.asarray(b).reshape(1))
 
 
-def train_tampered():
+def train_tampered(extra_reals=()):
     """Tampered vs REAL only -- never sees a fully-synthetic image.
 
     Kept separate on measurement, not taste: folding tampered into the general
@@ -153,6 +153,20 @@ def train_tampered():
     m = (Ra.label.values == 0)
     X = np.concatenate([Xa[m], Xb])
     y = np.r_[np.zeros(m.sum()), np.ones(len(Xb))]
+    for src in extra_reals:
+        # More REAL photographs as negatives. Opt-in, because 5g tried this with
+        # a different real source and made COCO false positives 4x WORSE
+        # (13.6% -> 53.5%) while the branch's own AUROC rose. 7.5 explains why:
+        # the branch fits a SID_Set construction artifact, so generic real
+        # diversity sharpens the artifact instead of teaching the concept.
+        # COCO train2017 is a narrower bet -- it carries the exact false-positive
+        # mode section 5 found (watermarks, collages, printed packaging).
+        Xr, Rr = load(src)
+        k = (Rr.label.values == 0) & Rr.variant.isin(KEEP).values
+        assert k.any(), f"{src} has no real rows in KEEP variants"
+        X = np.concatenate([X, Xr[k]])
+        y = np.r_[y, np.zeros(int(k.sum()))]
+        print(f"  + {src}: {int(k.sum()):,} real rows as negatives")
     return fit(X, y), X, y
 
 
@@ -231,7 +245,8 @@ def train_general_plus(extra="so_fake_ood", split="calib_ood", also=()):
 
 
 SOURCES = ("sid_train", "sid_tampered", "sid_calib", "so_fake_ood",
-           "sid_tampered_eval", "organizer_val")
+           "sid_tampered_eval", "organizer_val", "so_fake_tampered_eval",
+           "wildfake_midjourney", "coco_train_reals")
 
 
 def check_disjoint(sources=SOURCES):
@@ -258,6 +273,10 @@ if __name__ == "__main__":
     ap.add_argument("--check", action="store_true",
                     help="split-disjointness only; do NOT retrain or overwrite the "
                          "shipped .npz files")
+    ap.add_argument("--tampered-reals", nargs="*", default=[],
+                    help="extra REAL sources as negatives for the tampered "
+                         "branch, e.g. coco_train_reals. See ERROR_ANALYSIS 7.5 "
+                         "before trusting the result -- 5g says this can backfire")
     ap.add_argument("--also", nargs="*", default=[],
                     help="extra training sources for --plus, e.g. wildfake_midjourney")
     ap.add_argument("--plus", action="store_true",
@@ -284,7 +303,7 @@ if __name__ == "__main__":
         save(calibrate(clf, Xc, yc))        # log-odds, or predict.py misreads it
 
     try:
-        tclf, Xt, yt = train_tampered()
+        tclf, Xt, yt = train_tampered(a.tampered_reals)
         save(tclf, MODEL_TAMPERED)
         Xe, Re = load("sid_tampered_eval")
         Xo, Ro = load("so_fake_ood")
