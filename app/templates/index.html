@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Quorum — AI Image Detector</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="icon" href="{{ url_for('static', filename='quorum-logo.png') }}" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,15 +17,17 @@
     <div class="ambient" aria-hidden="true"></div>
 
     <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">
-          <img class="logo" src="{{ url_for('static', filename='quorum-logo.png') }}" alt="" />
-        </span>
-        <div>
-          <p class="brand-name">Quorum</p>
-          <p class="brand-tag">AI Image Detector</p>
+      <a href="/">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <img class="logo" src="{{ url_for('static', filename='quorum-logo.png') }}" alt="" />
+          </span>
+          <div>
+            <p class="brand-name">Quorum</p>
+            <p class="brand-tag">AI Image Detector</p>
+          </div>
         </div>
-      </div>
+      </a>
       {% if demo_mode %}
       <!-- <span class="demo-pill" title="Results are simulated until the model is connected">
         Demo preview
@@ -185,9 +187,16 @@
       </section>
     </main>
 
-    <footer class="foot">
-      
-    </footer>
+    <footer class="footer">
+      <div class="footer-bottom">
+          <p>
+              Results are probabilistic and should not be considered definitive
+              proof of image authenticity.
+          </p>
+
+          <span>© 2026 Quorum · Built for TikTok TechJam 2026 Hackathon</span>
+      </div>
+  </footer>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   </body>
