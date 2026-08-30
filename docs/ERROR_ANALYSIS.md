@@ -4,7 +4,7 @@ Required deliverable #5. Every number here is measured, none is asserted, and
 each one names the script that reproduces it.
 
 Scores come from `predict.score_embeddings` — the shipped scorer,
-`max(general, 1.25 * tampered)` at `OPERATING_POINT = 0.7866`, so the threshold
+`max(general, 1.25 * tampered, face)` at `OPERATING_POINT = 0.8092`, so the threshold
 below is always 0.5 on the emitted `pred`. Both constants changed on 30 Aug when
 the probe was retrained (section 3.1); the figures import them from `predict.py`
 rather than pasting them, so a figure cannot outlive the model it illustrates.
@@ -15,22 +15,19 @@ rather than pasting them, so a figure cannot outlive the model it illustrates.
 
 | eval set | n | AUROC | ACC | PREC | RECALL | F1 | FPR | FNR |
 |---|---|---|---|---|---|---|---|---|
-| **So-Fake-OOD clean** *(headline)* | 4,198 | 0.9318 | 0.8423 | 0.9031 | 0.7674 | 0.8297 | 0.0825 | 0.2326 |
-| So-Fake-OOD, all 15 variants | 62,970 | 0.9258 | 0.8276 | 0.9109 | 0.7268 | 0.8085 | 0.0713 | 0.2732 |
-| organizer set, clean †| 8,719 | 0.9908 | 0.9584 | 0.9677 | 0.9336 | 0.9503 | 0.0232 | 0.0664 |
-| organizer set, all 15 † | 130,785 | 0.9836 | 0.9405 | 0.9494 | 0.9090 | 0.9288 | 0.0360 | 0.0910 |
-| SID_Set tampered, clean | 3,595 | 0.9004 | 0.8184 | 0.8549 | 0.6798 | 0.7573 | 0.0825 | 0.3202 |
-| SID_Set tampered, all 15 | 24,581 | 0.8714 | 0.6301 | 0.9874\* | 0.6033 | 0.7490 | 0.0825 | 0.3967 |
-| **FOREIGN tampered, clean** | 5,096 | **0.7334** | 0.5679 | 0.8488 | **0.3237** | 0.4686 | 0.0825 | 0.6763 |
-| **FOREIGN tampered, all 15** | 47,096 | **0.7441** | 0.3610 | 0.9887\* | 0.3350 | 0.5005 | 0.0825 | 0.6650 |
+| **So-Fake-OOD clean** *(headline)* | 4,198 | 0.9265 | 0.8380 | 0.9021 | 0.7588 | 0.8243 | 0.0825 | 0.2412 |
+| So-Fake-OOD, all 15 variants | 62,970 | 0.9206 | 0.8221 | 0.9076 | 0.7177 | 0.8016 | 0.0733 | 0.2823 |
+| organizer set, clean † | 8,719 | 0.9722 | 0.9185 | 0.8872 | 0.9266 | 0.9065 | 0.0876 | 0.0734 |
+| organizer set, all 15 † | 130,785 | 0.9594 | 0.8989 | 0.8675 | 0.9005 | 0.8837 | 0.1023 | 0.0995 |
+| SID_Set tampered, clean | 3,595 | 0.9120 | 0.8473 | 0.8665 | 0.7492 | 0.8036 | 0.0825 | 0.2508 |
+| **FOREIGN tampered, clean** ‡ | 5,096 | **0.7260** | 0.5608 | 0.8464 | **0.3103** | 0.4541 | 0.0806 | 0.6897 |
 
-† **Contaminated on BOTH halves since 30 Aug, and this is easy to understate.**
-Its real half is COCO val2017 and the tampered branch now trains on COCO
-*train2017* (section 7.6). Its AI half is WildFake DALL-E and the general probe
-now trains on WildFake Midjourney (section 3.2). Both are different images with
-zero overlap and both are permitted -- but neither is a different *corpus*. The
-AI half is the milder case, since generator-disjointness is the point of that
-test. 0.9908 is not the externally-comparable number it was. Do not headline it.
+‡ Scored with **two** branches, not three: `so_fake_tampered_eval` was embedded
+without face extraction, so no `face_*` cache exists for it. Face is applied
+all-or-nothing per row set -- giving the borrowed reals face scores while the
+tampered positives got none would add false positives with no possible rescues
+and understate the scorer by ~0.009. `make_figures.py` prints a line when it
+skips a row for this reason.
 
 \* Those rows pit thousands of edited images against 2,096 reals. Precision and
 accuracy there are imbalance artifacts; only AUROC, FPR and recall mean anything.
@@ -50,11 +47,9 @@ val2017 -- one generator against one photo corpus -- and the brief states it
 chosen to control:
 
 ```
-laion5b holdout, clean     n=2,000   FPR 19.50%   <- CORPUS-DISJOINT, see 7.7
-laion5b holdout, all 15    n=30,000  FPR 16.30%
+laion5b holdout, clean     n=2,000   FPR 18.05%   <- CORPUS-DISJOINT, see 7.7
 So-Fake-OOD reals, clean   n=2,096   FPR  8.25%   unseen images, shared corpus
-COCO val2017 reals, clean  n=5,000   FPR  2.32%   in-distribution since 7.6
-COCO val2017, all 15 var   n=75,000  FPR  3.60%   in-distribution
+COCO val2017 reals, clean  n=5,000   FPR  8.76%   corpus-disjoint again since 7.6 was reverted
 ```
 
 **The reference pool changed on 30 Aug and this is the important line in the
@@ -79,8 +74,8 @@ The project's own thesis, so it goes first. AUROC across the organizers' 15-way
 grid:
 
 ```
-So-Fake-OOD     clean 0.9255   worst 0.8900 (noise01)   drop 0.0355
-organizer set   clean 0.9719   worst 0.9145 (noise01)   drop 0.0574
+So-Fake-OOD     clean 0.9265   worst 0.8911 (noise01)   drop 0.0354
+organizer set   clean 0.9722   worst 0.9158 (noise01)   drop 0.0564
 ```
 
 Two things worth saying out loud:
@@ -545,8 +540,16 @@ Reproduce: `scratchpad/tamp_transfer.py`. The set is `so_fake_tampered_eval`,
 
 ---
 
-**7.6 COCO train2017 as tampered-branch negatives: shipped, with a caveat that
-is bigger than the gain.**
+**7.6 COCO train2017 as tampered-branch negatives: shipped, then REVERTED.**
+
+> **Reverted 30 Aug.** Section 7.7 built a corpus-disjoint holdout that did not
+> exist when this was decided, and it inverts the conclusion. At matched budget
+> the COCO negatives are *worse* on the only pool nothing trains on -- laion
+> 19.50% with them against 18.50% without -- and they cost 7.3pp of tampered
+> recall. What they actually bought was +0.0063 AUROC and an in-distribution COCO
+> number. Reverting returned COCO val2017 and the organizer benchmark to clean
+> evaluation sets, which is worth more than 0.006. The rest of this section is
+> kept as the record of what was measured and why it looked right at the time.
 
 Section 5 found our false positives are watermarks, collages and printed
 graphics inside real photographs, and section 7.5 found the branch fits corpora
@@ -663,6 +666,51 @@ Reproduce: `scratchpad/contam.py`, and the pool itself via
 
 ---
 
+**7.8 The face branch ships, and §8.6 was measuring the wrong thing.**
+
+For weeks the face probe was excluded on an aggregate-AUROC argument: adding it
+moved So-Fake-OOD 0.9153 to 0.9161, a wash. That number is real and the
+conclusion drawn from it was wrong, because **only 27% of images contain a
+detectable face**. A genuine gain on that quarter is divided by four before it
+reaches the average, so "no effect on the pooled number" and "no effect" are not
+the same statement.
+
+Counting RESCUES instead -- AI images `max(general, tampered)` misses that the
+face branch catches, against real images it newly flags -- across all 15 variants:
+
+| | RESCUES | BREAKS | ratio | pooled AUROC |
+|---|---|---|---|---|
+| So-Fake-OOD | 442 / 1,891 missed AI faces | 58 / 8,209 real faces | **7.6:1** | 0.9193 → 0.9206 |
+| organizer set | 111 / 1,126 | 78 / 3,859 | 1.4:1 | 0.9589 → 0.9594 |
+
+**It does not hurt on ANY of the 15 variants, on either eval set.** That was the
+condition for shipping it -- robustness is this project's thesis, and a branch
+that helped on clean images and folded under degradation would have been worse
+than nothing. Thirty variant-by-set combinations, not one negative.
+
+At matched false positives (8.25% on So-Fake-OOD reals): recall 74.93% → 75.88%,
+FNR 25.07% → 24.12%, F1 0.8182 → 0.8243. `OPERATING_POINT` re-anchored 0.8050 →
+0.8092 by the same rule on the same pool. No new dependency: `opencv-python` was
+already required and `yunet.onnx` already tracked.
+
+**Why this one earns a place in `max()` when five others did not.** It is the only
+branch that brings *different features*: a separately-detected, separately-embedded
+769-d face crop. Every rejected branch was a different *fit* of the same 768
+numbers -- spectral (§8.7), per-generator specialists (§8.10), an MLP head
+(§8.11), a face-tampered probe, a noise specialist. `max()` over correlated
+linear probes on identical features adds a false-positive floor without adding
+information. That is now measured five ways and is the closest thing this project
+has to an architectural rule.
+
+**Two honest limits.** It does nothing for GPT-image-2, scoring those faces
+0.02–0.43 — it was trained on 2023-era deepfakes and carries the same recency
+blind spot as everything else here. And it needs PIXELS, so anything built on
+cached 768-d embeddings cannot reproduce the shipped score; `make_figures.py`
+now joins the `face_*` caches, but `pick_threshold.py` still cannot and says so.
+Reproduce: `scratchpad/face_max.py`, `face_grid.py`.
+
+---
+
 ## 8. What we tried that did not work
 
 Negative results, kept because they are the evidence that the shipped design is
@@ -675,7 +723,7 @@ a decision rather than a default.
 | 3 | Text crops across the 15-variant grid | Clean 0.8284 → worst **0.5229**; detection collapses to 48.2%, and missingness is label-correlated 3.63:1 (AI text is 60px median, real text 19px, against an 8px OCR floor) |
 | 4 | Text consistency, as a concept | 2 of 6 sampled real COCO text regions are photographer watermarks. Any such detector answers *"was this text composited?"*, not *"was this AI-generated?"* — the same confusion as §5 |
 | 5 | Retrain tampered on more real-photo diversity | COCO FP got **worse**, 13.6% → 53.5%, while its own AUROC rose 0.9528 → 0.9884. Capacity and data are not the lever. **Explained in §7.5**: the branch fits a SID_Set construction artifact, so more real diversity sharpens the artifact and generalises nothing |
-| 6 | Face branch into `max()` | Wash: 0.9161/0.8856 against 0.9153/0.8860 |
+| 6 | ~~Face branch into `max()`~~ | **OVERTURNED 31 Aug — it ships.** The "wash" was an artifact of averaging over the 73% of images with no face. See §7.8 |
 | 7 | Face + spectral into `max()` | Clearly worse: 0.8914/0.8135 |
 | 8 | Fusion meta-classifier | Loses on both sets (§7.4) |
 | 9 | **Patch self-consistency** | Mechanism confirmed, gate failed — below |
@@ -781,6 +829,23 @@ Reproduce: `scratchpad/patch_build.py`, `patch_eval.py`.
   nothing trains on -- see 7.7. It cost us the flattering number: FPR there is
   **19.50%**, against 2.32% on COCO. Reproduce: `scratchpad/contam.py`,
   `contam2.py`.
+- **We have now SEEN the tampered class, for the first time in the project.**
+  40 images streamed 31 Aug to `data/raw/images/sid_tampered_peek/`. `tampered`
+  is confirmed as *a real photograph with a region replaced or inserted by a
+  generative model*: a teddy bear regenerated with a visible seam through its
+  ears, a real gate scene with an added octagonal sign whose text is AI mush
+  beside a genuine STOP sign that reads correctly, a park photo with a person and
+  frisbee inserted while the original frisbee is still in shot. Not compression,
+  not crops, not overlays. Every earlier statement in this document about the
+  tampered class rested on SID_Set's naming and our own docstring; now it rests
+  on pixels.
+- **The DALL-E watermark hypothesis is dead.** The visible colour stripe appears
+  in 2 of those 40 corners (~5%) -- real, but nowhere near enough to explain a
+  0.036 -> 0.924 separation. The better candidate, now that the images can be
+  looked at, is **inpainting blend seams**: the teddy bear has a discernible
+  boundary where the regenerated region meets the original. Still a hypothesis,
+  but grounded in pixels rather than inference, and testable now that 40 images
+  are on disk.
 - **The SID_Set artifact in 7.5 is inferred, not identified.** The evidence that
   one exists is strong -- a 10x difference in edit response and near-perfect
   in-corpus separation on a hard task -- but we have not seen the pixels, so we

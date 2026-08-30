@@ -56,8 +56,9 @@ from quorum.detectors.general import MODELS, load
 # than a threaded parameter: every figure would otherwise grow an argument it
 # does nothing with but forward.
 FIGURES = ROOT / "docs" / "figures"
-BRANCHES = ("general", "tampered")
-SCORE_LABEL = "max(general, tampered)"
+BRANCHES = ("general", "tampered", "face")
+SCORE_LABEL = "max(general, tampered, face)"
+SHIP_LABEL = "max(general, tampered, face)  — shipped"
 NO_TAMPERED = False
 # Shared with quorum/calibrate.py's reliability plot so the figure set reads as
 # one document rather than four unrelated charts.
@@ -98,6 +99,47 @@ def save(fig, name):
 
 
 # ---------------------------------------------------------------- data ------
+def face_raw(srcs, R):
+    """Face-branch score on the RAW scale, aligned to R, 0.0 where no face.
+
+    Raw, not shifted: everything in this file works pre-SHIFT because NEW_THR is
+    the raw-scale operating point. predict.py shifts once at the end instead.
+
+    Joined on (image_id, variant) because the face cache is a different row set
+    -- only ~27% of images yield a detectable face, and the missing ones must
+    score 0.0 so an absent branch cannot raise the max.
+    """
+    import pandas as pd
+    z = np.load(MODELS / "face.npz")
+    w, b = z["w"].ravel(), float(z["b"].ravel()[0])
+    mu, sd = float(z["px_mu"]), float(z["px_sd"])
+    # ALL-or-NOTHING across the group. A row set that concatenates positives and
+    # borrowed negatives must not get face scores for only one of them: the branch
+    # would then add false positives with no possible rescues and the comparison
+    # would penalise the shipped scorer for a missing cache. so_fake_tampered_eval
+    # has no face crops (it was embedded without --features), so that row runs
+    # two-branch and says so.
+    m = {}
+    for one in ((srcs,) if isinstance(srcs, str) else srcs):
+        try:
+            Xf, Rf = load("face_" + one)
+        except FileNotFoundError:
+            print(f"  (no face_{one} cache -- face omitted for this row)")
+            return np.zeros(len(R), np.float32)
+        px = np.maximum(Rf["face_px"].values, 1)
+        sc = 1 / (1 + np.exp(-(np.column_stack([Xf, (np.log2(px) - mu) / sd]) @ w + b)))
+        m.update(zip(zip(Rf.image_id, Rf.variant), sc))
+    return np.array([m.get(k, 0.0) for k in zip(R.image_id, R.variant)], np.float32)
+
+
+def branch_dict(srcs, X, R):
+    """Every shipped branch for one row set. The face branch joined the scorer on
+    31 Aug; before that these figures were two-branch and understated it."""
+    d = {n: probe(n, X) for n in ("general", "tampered")}
+    d["face"] = face_raw(srcs, R)
+    return d
+
+
 def probe(name, X):
     """Raw branch probability, tampered pre-scaled exactly as predict.py does.
 
@@ -122,24 +164,26 @@ def populations():
     ev = ((Ro.split == "test_ood") & (Ro.variant == "clean")).values
     out = {
         "y": Ro.label.values[ev],
-        "eval": {n: probe(n, Xo[ev]) for n in ("general", "tampered")},
+        "eval": branch_dict("so_fake_ood", Xo[ev], Ro[ev]),
         "reals": {},
     }
-    for key, X, R in (("sid", Xs, Rs), ("ood", Xo[ev], Ro[ev]), ("coco", Xc, Rc)):
+    for key, src, X, R in (("sid", "sid_calib", Xs, Rs),
+                           ("ood", "so_fake_ood", Xo[ev], Ro[ev]),
+                           ("coco", "organizer_val", Xc, Rc)):
         m = ((R.label.values == 0) & (R.variant == "clean").values
              if "variant" in R else R.label.values == 0)
-        out["reals"][key] = {n: probe(n, X[m]) for n in ("general", "tampered")}
+        out["reals"][key] = branch_dict(src, X[m], R[m].reset_index(drop=True))
     # The DALL-E 3 half of the organizer set. Already loaded and previously
     # thrown away -- "coco" above keeps only organizer_val's label==0 rows, so
     # every figure showed the benchmark's real side and none of its fake side.
     ai = (Rc.label.values == 1) & (Rc.variant == "clean").values
-    out["organizer"] = {n: probe(n, Xc[ai]) for n in ("general", "tampered")}
+    out["organizer"] = branch_dict("organizer_val", Xc[ai], Rc[ai].reset_index(drop=True))
     # Locally-edited photographs -- the half of the task neither eval set above
     # can contain, because both are synthetic-vs-real by construction. All
     # positives; figures needing negatives borrow the So-Fake-OOD reals.
     Xt, Rt = load("sid_tampered_eval")
     kt = (Rt.variant == "clean").values
-    out["edited"] = {n: probe(n, Xt[kt]) for n in ("general", "tampered")}
+    out["edited"] = branch_dict("sid_tampered_eval", Xt[kt], Rt[kt].reset_index(drop=True))
     return out
 
 
@@ -471,11 +515,12 @@ def fig_benchmarks():
     # the SAME reals the headline row uses -- then the two rows differ only in
     # what counts as a positive, which is the comparison this figure is for.
     real = (Ro.label.values == 0)
-    SETS = [("Organizer set\nDALL\u00b7E 3 + COCO val2017", *held("organizer_val")),
-            ("So-Fake-OOD\nunseen generator families", Xo, Ro),
+    SETS = [("Organizer set\nDALL\u00b7E 3 + COCO val2017", *held("organizer_val"), ("organizer_val",)),
+            ("So-Fake-OOD\nunseen generator families", Xo, Ro, ("so_fake_ood",)),
             ("SID tampered\nlocally edited vs So-Fake-OOD reals",
              np.concatenate([Xt, Xo[real]]),
-             pd.concat([Rt, Ro[real]], ignore_index=True))]
+             pd.concat([Rt, Ro[real]], ignore_index=True),
+             ("sid_tampered_eval", "so_fake_ood"))]
     # The same task on a FOREIGN corpus of edits. The tampered branch trains on
     # SID_Set, so every other tampered row here is a same-dataset number; this
     # is the one that is not. See docs/ERROR_ANALYSIS.md 7.5.
@@ -483,21 +528,23 @@ def fig_benchmarks():
         Xf, Rf = load("so_fake_tampered_eval")
         SETS.append(("So-Fake-OOD tampered\nFOREIGN edits, same reals",
                      np.concatenate([Xf, Xo[real]]),
-                     pd.concat([Rf, Ro[real]], ignore_index=True)))
+                     pd.concat([Rf, Ro[real]], ignore_index=True),
+                     ("so_fake_tampered_eval", "so_fake_ood")))
     except FileNotFoundError:
         print("  (no so_fake_tampered_eval shards -- foreign row skipped)")
 
     rows = {}
-    for label, X, R in SETS:
-        g, t = probe("general", X), probe("tampered", X)
+    for label, X, R, fsrc in SETS:
+        d = branch_dict(fsrc, X, R)
+        g = d["general"]
         for scorer, v in (("general alone", g),
-                          ("max(general, tampered)  \u2014 shipped", np.maximum(g, t))):
+                          (SHIP_LABEL, np.maximum.reduce([d[n] for n in BRANCHES]))):
             a = pd.Series({var: roc_auc_score(R.label[k], v[k])
                            for var, k in ((var, (R.variant == var).values)
                                           for var in R.variant.unique())
                            if R.label[k].nunique() == 2})
             rows[(label, scorer)] = (a["clean"], a.min(), a.idxmin())
-    ship = "general alone" if NO_TAMPERED else "max(general, tampered)  — shipped"
+    ship = "general alone" if NO_TAMPERED else SHIP_LABEL
     headline = next(v[0] for (lab, sc), v in rows.items()
                     if lab.startswith("So-Fake-OOD") and sc == ship)
 
@@ -525,6 +572,9 @@ def fig_benchmarks():
     # combiner table maxes the PLATT-CALIBRATED branches instead and reads
     # 0.9114/0.8771 on so_fake_ood -- a different model, not this one.
     style(ax, "Every eval set, general alone against the shipped max()")
+    ship_avg = float(np.mean([v[0] for (lab, sc), v in rows.items() if sc == ship]))
+    gen_avg = float(np.mean([v[0] for (lab, sc), v in rows.items()
+                             if sc == 'general alone']))
     fig.text(0.0, -0.20 * 5.4 / (5.4 + 1.8 * (len(SETS) - 3)),
              "The organizer set is the only externally-comparable number we get, and it is the "
              "easiest of the four: DALL\u00b7E 3 is\na softer target than So-Fake-OOD's generator "
@@ -537,7 +587,7 @@ def fig_benchmarks():
              + ("This run DROPS tampered: the 'general alone' row of each pair is what now ships,"
                 + "\nand the max() row is what it replaced."
                 if NO_TAMPERED else
-                "max() still wins on the pooled task \u2014 FULL avg 0.9113 vs 0.8849,"
+                f"max() still wins on the pooled task \u2014 FULL avg {ship_avg:.4f} vs {gen_avg:.4f},"
                 + "\nwhich is why it ships. The trade is real and belongs in the write-up."),
              fontsize=8.2, color="#555C66", ha="left")
     save(fig, "benchmarks.png")
