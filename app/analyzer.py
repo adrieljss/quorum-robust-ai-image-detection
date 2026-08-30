@@ -29,7 +29,9 @@ Notes worth keeping in mind:
     trained probe, no entry, so an empty list means "nothing scorable
     found," not "nothing was checked." Only the single largest face is
     scored, matching how face.npz was trained (one face per image, not an
-    ensemble).
+    ensemble). tampered does not get a region entry: it scores the whole
+    image (same CLIP embedding as general, just a different linear probe on
+    top), not a specific crop, so it has nothing to draw a box around.
   - _face_bbox() re-runs face detection instead of editing
     quorum/features.py to have face_crop() return the box it already
     computes internally. That file is shared with the training pipeline, so
@@ -197,12 +199,13 @@ def _content_type(general_vec: np.ndarray) -> str:
     return CONTENT[int(np.argmax(onehot[0]))]
 
 
-def _explanation(verdict: str, general_cal: float, tampered_cal: float,
+def _explanation(verdict: str, general_cal: float, tampered_cal: Optional[float],
                   face_cal: Optional[float], content_type: str) -> str:
     """Short templated rationale, not a learned explainability model --
     names whichever branch drove the number."""
-    branches = [("general synthesis probe", general_cal),
-                ("localized-edit probe", tampered_cal)]
+    branches = [("general synthesis probe", general_cal)]
+    if tampered_cal is not None:
+        branches.append(("localized-edit probe", tampered_cal))
     if face_cal is not None:
         branches.append(("face probe", face_cal))
 
@@ -265,7 +268,7 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     verdict = _verdict_from_score(confidence)
 
     general_cal = _sigmoid(general_raw)
-    tampered_cal = _platt(tampered_raw, st.cal_tampered) if tampered_raw is not None else 0.5
+    tampered_cal = _platt(tampered_raw, st.cal_tampered) if tampered_raw is not None else None
 
     face_cal = None
     regions = []
@@ -300,6 +303,7 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
         "signals": {
             "general": round(general_cal, 4),
             "face": round(face_cal, 4) if face_cal is not None else None,
+            "tampered": round(tampered_cal, 4) if tampered_cal is not None else None,
             "text": None,        # branch cut -- see module docstring
             "regularity": None,  # spectral detector never built -- see module docstring
         },

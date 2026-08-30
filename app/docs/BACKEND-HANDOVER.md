@@ -1,8 +1,8 @@
-# Quorum backend handover — `regions` field
+# Quorum backend handover — response additions
 
-This document describes one addition to the API contract defined in `FRONTEND-HANDOVER.md`. It does not replace that document; read them together. Everything in `FRONTEND-HANDOVER.md` section 2 is unchanged. This adds a new field to the same response object.
+This document describes additions to the API contract defined in `FRONTEND-HANDOVER.md`. It does not replace that document; read them together.
 
-The backend (`app/analyzer.py`) already returns `regions` on every response. `static/js/app.js` does not read it yet, since `FRONTEND-HANDOVER.md` (top of file) states that response-shape changes require a corresponding update there. Sections 2–4 below describe what that update needs to do.
+Sections 2–5 describe the `regions` field. This has since been folded into `FRONTEND-HANDOVER.md`'s own example response, so those sections are kept here for reference rather than as an outstanding action item. Section 6 describes a new addition, `signals.tampered`, that has not yet been folded in.
 
 ---
 
@@ -100,3 +100,23 @@ regions.forEach(region => {
 ```
 
 A suggested per-region label: `` `${region.type} · ${Math.round(region.score * 100)}% · ${region.verdict}` `` (for example, "face · 91% · likely_ai"). Styling is left to whatever fits the rest of the UI.
+
+---
+
+## 6. New signal: `signals.tampered`
+
+`signals` now includes a fifth key, `tampered`, alongside `general`, `face`, `text`, and `regularity`.
+
+```json
+"signals": {
+  "general": 0.91,
+  "face": 0.83,
+  "tampered": 0.22,
+  "text": null,
+  "regularity": null
+}
+```
+
+`tampered` follows the same conventions as every other key in `signals`: a number `0`–`1` (this branch's own P(AI-generated), independent of the headline `confidence`), or `null` if the branch did not run. It does not appear in `regions`, since it scores the image as a whole rather than a specific cropped area, so there is no bounding box to draw for it.
+
+`FRONTEND-HANDOVER.md`'s note on `SIGNAL_META` — add a bar only if the API adds a signal key — covers this case directly.
