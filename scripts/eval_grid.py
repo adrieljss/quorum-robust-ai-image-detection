@@ -20,9 +20,17 @@ import numpy as np
 import pandas as pd
 
 from quorum.detectors.face import design, px_stats
-from quorum.detectors.general import load, fit, auc_by_variant
+from quorum.detectors.general import load, fit, fit_general, auc_by_variant, train_tampered
 
-OUT = Path(__file__).resolve().parents[1] / "docs" / "robustness.md"
+DOCS = Path(__file__).resolve().parents[1] / "docs"
+
+
+def out_path(source):
+    """so_fake_ood owns robustness.md -- it is the required deliverable. Every
+    other source gets its own file, because a fixed path meant `--source
+    organizer_val` silently overwrote the headline table with a different one."""
+    return DOCS / ("robustness.md" if source == "so_fake_ood"
+                   else f"robustness-{source}.md")
 
 # branch -> cache prefix. Same probe, same 15-variant grid, different features.
 BRANCHES = {"general": "", "face": "face_", "spectral": "spec_"}
@@ -41,6 +49,11 @@ BLUR_CAVEAT = """
 """
 
 
+def blur_rises(df):
+    return ("face" in df.columns and "blur20" in df.index
+            and df.loc["blur20", "face"] > df.loc["clean", "face"])
+
+
 def held_out(X, R):
     """Drop the calibration carve. so_fake_ood now contains calib_ood rows that
     calibrators and fusion are fitted on -- scoring them here would report a
@@ -57,13 +70,13 @@ def grid(prefix, eval_source, train_source="sid_train"):
     if prefix == "face_":                       # Kacey's 769th feature, not the 768-d baseline
         st = px_stats(Rtr)
         Xtr, X = design(Xtr, Rtr, st), design(X, R, st)
-    return auc_by_variant(fit(Xtr, Rtr.label.values), X, R)
+    trainer = fit_general if prefix == "" else fit
+    return auc_by_variant(trainer(Xtr, Rtr.label.values), X, R)
 
 
 def tampered_grid(real_source):
     """Tampered eval has no negatives of its own -- borrow the reals from the
     eval source so every variant is scored on a matched pair."""
-    from quorum.detectors.general import train_tampered
     clf, _, _ = train_tampered()
     Xe, Re = load("sid_tampered_eval")
     Xr, Rr = held_out(*load(real_source))
@@ -151,17 +164,36 @@ def main(source, do_comb):
         f"clean-to-worst **drop** is the robustness claim; a high mean with a large "
         f"drop is a fragile detector.\n",
         "\n## Per-branch summary\n", fence, summary.to_string(float_format="%.4f"), fence,
-        BLUR_CAVEAT,
+        # Only where it is actually true. On organizer_val the face row FALLS
+        # under blur (0.9520 -> 0.8887), so emitting this unconditionally
+        # contradicted the table three lines above it.
+        BLUR_CAVEAT if blur_rises(df) else "",
         "\n## Full grid\n", fence, df.to_string(float_format="%.4f"), fence,
-        "\n![Robustness grid](figures/robustness.png)\n\n_Same numbers as a "
-        "heatmap, rows sorted by mean drop from clean. Regenerate with "
-        "`python scripts/make_figures.py robustness`._\n",
-        "\n## Where the decision is made\n\nAUROC above is threshold-free and "
-        "says nothing about whether the shipped cut works. It did not: 0.5 was "
-        "the sigmoid default and flagged a quarter of COCO photographs as AI. "
-        "`predict.py` now cuts at an operating point picked on `calib_ood`.\n\n"
-        "![Threshold sweep](figures/threshold.png)\n\n"
-        "![Score separation](figures/separation.png)\n",
+        # Every figure under docs/figures except benchmarks.png is built from
+        # so_fake_ood. Embedding them under another source captioned "same
+        # numbers as a heatmap" was simply false -- organizer_val showed the
+        # So-Fake-OOD grid and claimed it as its own.
+        ("\n![Robustness grid](figures/robustness.png)\n\n_Same numbers as a "
+         "heatmap, rows sorted by mean drop from clean. Regenerate with "
+         "`python scripts/make_figures.py robustness`._\n"
+         "\n## Where the decision is made\n\nAUROC above is threshold-free and "
+         "says nothing about whether the shipped cut works. It did not: 0.5 was "
+         "the sigmoid default and flagged a quarter of COCO photographs as AI. "
+         "`predict.py` now cuts at an operating point picked on `calib_ood`.\n\n"
+         "![Threshold sweep](figures/threshold.png)\n\n"
+         "![Score separation](figures/separation.png)\n"
+         if source == "so_fake_ood" else
+         # Only link the grid image if make_figures.py actually built one for
+         # this source -- an unconditional link renders as a broken image on any
+         # source nobody has drawn, which is every source except organizer_val.
+         ((f"\n![Robustness grid](figures/robustness-{source}.png)\n\n_The table "
+           f"above as a heatmap, rows sorted by mean drop from clean. Regenerate "
+           f"with `python scripts/make_figures.py robustness-organizer`._\n"
+           if (DOCS / "figures" / f"robustness-{source}.png").exists() else "")
+          + "\n![Benchmarks](figures/benchmarks.png)\n\n_This source against the "
+          "So-Fake-OOD headline, general probe vs the shipped `max`. The "
+          "remaining figures in `docs/figures` are built from So-Fake-OOD. "
+          "Regenerate with `python scripts/make_figures.py benchmarks`._\n")),
     ]
     if comb is not None:
         parts += [
@@ -181,14 +213,15 @@ def main(source, do_comb):
             "by dropping ~6 points on the headline. `HANDOVER.md` sections 5c and "
             "5e carry both fit sets.\n",
         ]
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text("".join(parts), encoding="utf-8")
+    out = out_path(source)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(parts), encoding="utf-8")
 
     print(df.to_string(float_format="%.4f"), "\n")
     print(summary.to_string(float_format="%.4f"))
     if comb is not None:
         print("\n" + comb.to_string(float_format="%.4f"))
-    print(f"\n-> {OUT}")
+    print(f"\n-> {out}")
 
 
 if __name__ == "__main__":

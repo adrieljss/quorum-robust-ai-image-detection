@@ -8,7 +8,6 @@ teammate can re-derive them; the whole point of the cache is that they do not
 have to.
 """
 import os
-import sys
 from pathlib import Path
 
 from huggingface_hub import HfApi

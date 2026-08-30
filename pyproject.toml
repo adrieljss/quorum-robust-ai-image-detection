@@ -1,0 +1,33 @@
+# Ruff owns both halves. One tool, no plugin chain, no black+isort+flake8 trio.
+#
+#     python -m ruff check .          # lint      (run by scripts/selfcheck.py)
+#     python -m ruff format --diff .  # what the formatter WOULD change
+#     python -m ruff format .         # apply it
+#
+# `ruff check` is enforced. `ruff format` is NOT, deliberately -- see below.
+
+[tool.ruff]
+# Where this repo already sits: 98% of lines are under 88, p90 is 79.
+line-length = 88
+extend-exclude = [".venv", "data", "docs"]
+
+[tool.ruff.lint]
+# Deliberately narrow, and the narrowness is the point.
+#
+# This codebase hand-aligns trailing comments into columns (quorum/degrade.py's
+# TRANSFORMS table, the `# SEEDED` markers, the measurement tables in every
+# docstring) and puts `sys.path.insert` between imports on purpose so scripts run
+# from anywhere. A default rule set reports all of that as error -- 181 findings,
+# of which 4 were real. Style noise at that ratio trains everyone to ignore the
+# linter, which costs more than it buys.
+#
+# So: only rules that fire on something actually wrong.
+#   F     pyflakes -- unused imports, undefined names, f-strings with no fields
+#   E9    syntax errors
+#   E741  `l` / `I` / `O` as names (`l` and `1` are the same glyph in many fonts)
+#   W     trailing whitespace, missing final newline
+#
+# Not selected, and why: E402 (the sys.path pattern above), E501 (the formatter
+# owns line length), E702 (`commit(rows); rows = []` is deliberate), B905
+# (22 hits, all noise), UP/SIM/C4 (rewrites working code for taste).
+select = ["F", "E9", "E741", "W"]

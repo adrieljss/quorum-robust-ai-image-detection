@@ -24,13 +24,35 @@ def sigmoid(x):
     return 1.0 / (1.0 + np.exp(-x))
 
 
-def shipped(X):
-    """Exactly what predict.py computes: raw sigmoids, no Platt, then max."""
+def shipped(X, names=("general", "tampered")):
+    """Exactly what predict.py computes: raw sigmoids, no Platt, then max.
+
+    `names` is a knob for asking what a subset of the branches would do -- a
+    one-branch call is still a valid scorer, so reduce rather than maximum(a, b).
+    """
     out = []
-    for n in ("general", "tampered"):
+    for n in names:
         z = np.load(MODELS / f"{n}.npz")
         out.append(sigmoid(X @ z["w"].ravel() + z["b"].ravel()[0]))
-    return np.maximum(*out)
+    return np.maximum.reduce(out)
+
+
+# Accuracy is FLAT across roughly 0.60-0.73 (within 0.01 on both calib and every
+# held-out set), so argmax alone picks noise.
+TOL = 0.01
+
+
+def plateau(p, y, tol=TOL):
+    """(highest, lowest) threshold within `tol` of peak accuracy, plus the curve.
+
+    On a plateau prefer the end that fires LESS: every extra positive there is a
+    real photograph accused of being synthetic. Precision and FPR are the
+    tiebreak, chosen before looking at test_ood.
+    """
+    grid = np.linspace(0.02, 0.98, 481)
+    acc = np.array([((p >= t) == (y == 1)).mean() for t in grid])
+    keep = np.flatnonzero(acc >= acc.max() - tol)
+    return float(grid[keep[-1]]), float(grid[keep[0]]), acc
 
 
 def stats(y, p, thr):
@@ -54,24 +76,20 @@ def main():
     ev = ((Ro.split == "test_ood") & (Ro.variant == "clean")).values
     pk, yk = shipped(Xo[cal]), Ro.label.values[cal]
 
-    # Accuracy is FLAT across roughly 0.60-0.73 (within 0.01 on both calib and
-    # every held-out set), so argmax alone picks noise. Take the highest
-    # threshold still within TOL of the best: on a plateau, prefer the end that
-    # fires less, because every extra positive here is a real photograph
-    # accused of being synthetic. Precision and FPR are the tiebreak, chosen
-    # before looking at test_ood.
-    TOL = 0.01
-    grid = np.linspace(0.02, 0.98, 481)
-    acc = np.array([((pk >= t) == (yk == 1)).mean() for t in grid])
-    thr = float(grid[np.flatnonzero(acc >= acc.max() - TOL)[-1]])
-    print(f"accuracy plateau (within {TOL}): "
-          f"{grid[np.flatnonzero(acc >= acc.max() - TOL)[0]]:.3f}-{thr:.3f}")
+    thr, lo, acc = plateau(pk, yk)
+    # index of 0.5 on plateau()'s grid, derived rather than counted: len//2 - 1
+    # lands on 0.498 and the line below then labels it "at 0.5".
+    at_half = int(np.argmin(np.abs(np.linspace(0.02, 0.98, 481) - 0.5)))
+    print(f"accuracy plateau (within {TOL}): {lo:.3f}-{thr:.3f}")
 
     y, p = Ro.label.values[ev], shipped(Xo[ev])
-    pc = shipped(Xc[(Rc.variant == "clean").values])
+    # label == 0 matters: organizer_val is COCO reals AND WildFake DALL-E 3.
+    # Without it the "COCO FP" column counted every correctly-caught fake as a
+    # false positive and read 56.3% at 0.5 against a true 27.6%.
+    pc = shipped(Xc[(Rc.variant == "clean").values & (Rc.label.values == 0)])
     pt = shipped(Xt[(Rt.variant == "clean").values])
     print(f"picked on calib_ood ({cal.sum():,} rows, all variants): {thr:.4f}")
-    print(f"  calib accuracy {max(acc):.4f} vs {acc[len(grid)//2 - 1]:.4f} at 0.5")
+    print(f"  calib accuracy {max(acc):.4f} vs {acc[at_half]:.4f} at 0.5")
     print(f"\nheld-out test_ood AUROC {roc_auc_score(y, p):.4f} "
           f"(unchanged -- a threshold cannot move it)\n")
 
@@ -85,7 +103,20 @@ def main():
     # predict.py emits a score, not a verdict, so shift the scale instead of
     # exporting a threshold: 0.5 on the output becomes this operating point.
     # Monotone, so AUROC is untouched and rank-based grading sees no change.
-    print(f"\npaste into predict.py:\n\n    OPERATING_POINT = {thr:.4f}")
+    # This rule maximises ACCURACY and nothing else. Accuracy is nearly flat
+    # across the plateau while the COCO false-positive rate is not, so the
+    # suggestion below can be worse on the axis this project actually chose.
+    # Compare the COCO column above before pasting.
+    from predict import OPERATING_POINT as SHIPPED
+    print(f"\naccuracy-optimal on calib_ood: {thr:.4f}")
+    if abs(thr - SHIPPED) > 1e-4:
+        print(f"predict.py ships:          {SHIPPED:.4f}  <- NOT the same, and that "
+              f"may be deliberate.\n"
+              f"  The plateau is flat in accuracy and steep in false positives on "
+              f"real\n  photography. 0.766 was kept over 0.692 because it holds COCO "
+              f"at 8.9%\n  instead of 13.7% for +0.002 accuracy. See predict.py.")
+    else:
+        print(f"predict.py ships:          {SHIPPED:.4f}  (agrees)")
 
 
 if __name__ == "__main__":

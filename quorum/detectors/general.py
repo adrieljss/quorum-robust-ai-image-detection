@@ -11,7 +11,7 @@ from functools import lru_cache
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, RidgeClassifier
 from sklearn.metrics import roc_auc_score
 
 from quorum.embed import load_source
@@ -80,6 +80,51 @@ def fit(X, y):
     return LogisticRegression(max_iter=2000).fit(X, y)
 
 
+def fit_general(X, y):
+    """Selected general-probe model; spectral and tampered use ``fit``.
+
+    Ridge beats logistic on rank quality here -- 0.9245/0.9013 against
+    0.9170/0.8848 on So-Fake-OOD, and a 0.0232 drop against 0.0321. But its
+    decision values are NOT log-odds, and predict.py sigmoids them against a
+    fixed operating point. Shipped raw, this probe scores 0.5143 accuracy and
+    0.0561 recall: it stops detecting. Always calibrate() before save().
+    """
+    return RidgeClassifier(alpha=0.001, solver="lsqr").fit(X, y)
+
+
+def calibrate(clf, X, y):
+    """Fold Platt scaling into the weights. Returns (w, b) in log-odds.
+
+    Platt is p = sigmoid(A*z + B) and z = x@w + b, so the calibrated logit is
+    x@(A*w) + (A*b + B) -- still linear. The calibration collapses into the
+    saved coefficients, so predict.py's scoring path needs no change and no new
+    file has to ship beside the probe.
+
+    Fitted on calib_ood, the generator-FAMILY-disjoint carve, for the same
+    reason calibrate.py uses it: sid_calib is a set this probe scores 0.9996 on,
+    and a slope fitted there manufactures over-confidence on unseen generators.
+
+    Measured against a plain moment-match onto the old logistic scale, which
+    needs no labels: Platt 0.9085/0.8731 vs 0.9057/0.8683, with better precision
+    (0.8816 vs 0.8724) and fewer COCO false positives. Matching onto the
+    TAMPERED branch instead -- the intuitive move, since that is what max()
+    compares against -- is much worse, 0.8309/0.7722; that branch is
+    over-confident and makes a bad reference.
+    """
+    w, b = clf.coef_.ravel(), float(np.ravel(clf.intercept_)[0])
+    z = (X @ w + b).reshape(-1, 1)
+    lr = LogisticRegression(max_iter=2000).fit(z, y)
+    A, B = float(lr.coef_.ravel()[0]), float(lr.intercept_[0])
+    return A * w, A * b + B
+
+
+def calib_rows(source="so_fake_ood", split="calib_ood"):
+    X, R = load(source)
+    m = (R.split == split).values
+    assert m.any(), f"no {split} rows in {source} -- run scripts/build_manifest.py"
+    return X[m], R.label.values[m]
+
+
 def auc_by_variant(clf, X, R):
     p = clf.decision_function(X)
     out = {v: roc_auc_score(R.label[m], p[m])
@@ -89,8 +134,10 @@ def auc_by_variant(clf, X, R):
 
 
 def save(clf, path=MODEL):
+    """Accepts an estimator, or a (w, b) pair already folded by calibrate()."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(path, w=clf.coef_, b=clf.intercept_)
+    w, b = clf if isinstance(clf, tuple) else (clf.coef_, clf.intercept_)
+    np.savez(path, w=np.asarray(w).reshape(1, -1), b=np.asarray(b).reshape(1))
 
 
 def train_tampered():
@@ -109,23 +156,45 @@ def train_tampered():
     return fit(X, y), X, y
 
 
-if __name__ == "__main__":
-    # The check that would have caught the 43-image SID_Set leak: no image may
-    # sit on both sides of the train/eval line once load() has filtered.
-    seen = {}
-    for s in ("sid_train", "sid_tampered", "sid_calib", "so_fake_ood",
-              "sid_tampered_eval", "organizer_val"):
-        seen[s] = set(load(s)[1].image_id)
+SOURCES = ("sid_train", "sid_tampered", "sid_calib", "so_fake_ood",
+           "sid_tampered_eval", "organizer_val")
+
+
+def check_disjoint(sources=SOURCES):
+    """The check that would have caught the 43-image SID_Set leak: no image may
+    sit on both sides of the train/eval line once load() has filtered.
+
+    Split out of __main__ so it can be run WITHOUT retraining. Everything below
+    overwrites data/models/general.npz and tampered.npz, which is not something a
+    test run should do to the shipped weights.
+    """
+    seen = {s: set(load(s)[1].image_id) for s in sources}
     for a in seen:
         for b in seen:
             if a < b:
-                assert not (seen[a] & seen[b]),                     f"{len(seen[a] & seen[b])} images shared by {a} and {b}"
-    print(f"splits disjoint: {sum(map(len, seen.values())):,} images across {len(seen)} sources")
+                assert not (seen[a] & seen[b]), (
+                    f"{len(seen[a] & seen[b])} images shared by {a} and {b}")
+    print(f"splits disjoint: {sum(map(len, seen.values())):,} images "
+          f"across {len(seen)} sources")
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--check", action="store_true",
+                    help="split-disjointness only; do NOT retrain or overwrite the "
+                         "shipped .npz files")
+    if ap.parse_args().check:
+        check_disjoint()
+        raise SystemExit
+
+    check_disjoint()
 
     Xtr, Rtr = load("sid_train")
     print(f"general: train {Xtr.shape}  {Rtr.label.value_counts().to_dict()}")
-    clf = fit(Xtr, Rtr.label.values)
-    save(clf)
+    clf = fit_general(Xtr, Rtr.label.values)
+    Xc, yc = calib_rows()
+    save(calibrate(clf, Xc, yc))            # log-odds, or predict.py misreads it
 
     try:
         tclf, Xt, yt = train_tampered()

@@ -22,7 +22,7 @@ five people without everyone downloading everything.
 
 ## 1. The single most important rule
 
-**COCO val2017 (4998 images) and the WildFake DALL·E Advanced subset (8843
+**COCO val2017 (5,000 images) and the WildFake DALL·E Advanced subset (3,719
 images) are the organizer's validation set. They must never enter training.**
 
 Training on them makes every number meaningless and would look like cheating in
@@ -102,11 +102,19 @@ often fails. CVPR 2025 (SIDA paper).
 
 Three classes: `real`, `full_synthetic`, `tampered`.
 
-**Use `real` vs `full_synthetic` for the binary task.** `tampered` is a different
-problem (localised manipulation of a real photo) — out of scope for AIGC
-detection as the brief frames it. Optionally keep tampered rows labelled
-separately for error analysis: how your detector behaves on partially-manipulated
-images is a good error-analysis paragraph.
+**Use `real` vs `full_synthetic` to train the general probe.** `tampered` is a
+different problem — localised manipulation of a real photo, which is globally
+authentic — so it gets its own probe rather than being folded into the general
+one. `train_tampered()` fits tampered-vs-SID-reals and never sees a synthetic
+image; `predict.py` ships `max()` of the two.
+
+> **Superseded, 30 Aug.** This paragraph used to read "out of scope for AIGC
+> detection as the brief frames it", which contradicted both `HANDOVER.md` §5g
+> and what actually ships. The problem statement's §5.1 lists "or lightly
+> edited" among the post-processing operations, and the project's own definition
+> of robust is "survives editing". **Tampered images are in scope and the branch
+> ships.** The full measurement of what that costs and buys is `HANDOVER.md`
+> §5h; the counterfactual is `docs/figures-no-tampered/`.
 
 **Caveat to check on download:** SID_Set may not carry per-generator labels. That
 is fine here — the unseen-generator guarantee comes from So-Fake-OOD being a
@@ -128,8 +136,9 @@ This is better than manufacturing a held-out split yourself:
 
 ### 4.3 Organizer validation — quarantined
 
-COCO val2017 (4998 real) + WildFake DALL·E Advanced (8843 AI). The brief provides
-this to demonstrate performance and track iteration. It does **not** count toward
+COCO val2017 (5,000 real) + WildFake DALL·E Advanced (3,719 AI — see the note
+below; it is NOT 8,843). The brief provides this to demonstrate performance and
+track iteration. It does **not** count toward
 the final score, and must not be trained on.
 
 Keep it in its own folder with its own manifest split. Report it as a reference
@@ -246,9 +255,22 @@ unzip -q val2017.zip && rm val2017.zip
 ls val2017 | wc -l    # expect 4998–5000
 ```
 
-WildFake DALL·E Advanced subset comes from ModelScope
-(`hy2628982280/WildFake`). Use the site's translation button. Take **only** the
-DALL·E Advanced subset the brief names.
+WildFake DALL·E Advanced comes from ModelScope (`hy2628982280/WildFake`). Do NOT
+download it by hand: the images ship in one 25.6 GB `DALLE.zip` and the subset we
+want is ~1.5 GB of it. `scripts/fetch_wildfake.py` reads the zip's central
+directory over HTTP range requests and inflates only `DALLE/Advanced/DALLE3`.
+
+```bash
+python scripts/fetch_wildfake.py --list   # asserts the subset is still 3,719
+python scripts/fetch_wildfake.py          # ~1.5 GB, resumable
+```
+
+**3,719 distinct images. WildFake files them as 8,843 entries under prompt-run
+folders, but 1,808 basenames repeat with an identical CRC32 and size -- the
+names are content hashes. Unique (CRC, size) pairs total 3,719 exactly,
+verified from the zip's central directory. The 8,843 figure the brief quotes is
+a FILE count; anyone reporting it as an image count is off by 5,124 duplicates
+that `image_id` silently drops.**
 
 Put a `README_DO_NOT_TRAIN.txt` in this folder. It costs nothing and it stops the
 mistake at 3am.
@@ -369,7 +391,7 @@ split             real     ai      total
 train            18000   18000    36000
 calib             3000    3000     6000
 test_ood         (from So-Fake-OOD, ~100k — subsample to 10k for speed)
-test_organizer    4998    8843    13841
+test_organizer    5000    3719     8719
 test_wild          400       0      400
 ```
 

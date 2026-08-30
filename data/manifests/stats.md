@@ -10,7 +10,7 @@ split
 calib           2000   1996
 calib_ood        976   1068
 test_ood        2096   3601
-test_organizer  5000      0
+test_organizer  5000   3719
 train           8000  11949
 ```
 
@@ -19,7 +19,7 @@ train           8000  11949
 ```
 split              calib  calib_ood  test_ood  test_organizer  train
 source                                                              
-organizer_val          0          0         0            5000      0
+organizer_val          0          0         0            8719      0
 sid_calib           3996          0         0               0      0
 sid_tampered           0          0         0               0   3949
 sid_tampered_eval      0          0      1499               0      0
