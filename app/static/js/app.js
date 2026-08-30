@@ -76,6 +76,8 @@
   var nextBtn = document.getElementById("next-btn");
   var dots = document.getElementById("dots");
   var resultImage = document.getElementById("result-image");
+  var resultVisual = document.querySelector(".result-visual");
+  var regionOverlay = document.getElementById("region-overlay");
   var resultFilename = document.getElementById("result-filename");
   var slideCounter = document.getElementById("slide-counter");
   var verdictLabel = document.getElementById("verdict-label");
@@ -331,13 +333,20 @@
     // Region coordinates use natural image pixels, so wait for this image
     // before cropping. The current slide check prevents a stale load winning.
     resultImage.onload = function () {
-      if (results[slideIndex] === item) renderRegions(data.regions);
+      if (results[slideIndex] === item) {
+        renderRegions(data.regions);
+        renderRegionOverlays(data.regions);
+      }
     };
     resultImage.src = item.objectUrl;
     resultImage.alt = data.filename || item.file.name;
     regionList.innerHTML = "";
     regionsPanel.classList.add("is-hidden");
-    if (resultImage.complete && resultImage.naturalWidth) renderRegions(data.regions);
+    regionOverlay.innerHTML = "";
+    if (resultImage.complete && resultImage.naturalWidth) {
+      renderRegions(data.regions);
+      renderRegionOverlays(data.regions);
+    }
     resultFilename.textContent = data.filename || item.file.name;
     slideCounter.textContent = slideIndex + 1 + " / " + results.length;
 
@@ -488,6 +497,55 @@
   }
 
   /**
+   * Draw bbox overlays over the displayed image. object-fit: contain can add
+   * letterboxing, so the image's rendered content bounds are calculated first.
+   */
+  function renderRegionOverlays(regions) {
+    regionOverlay.innerHTML = "";
+    if (!Array.isArray(regions) || !resultImage.naturalWidth) return;
+
+    var imageRect = resultImage.getBoundingClientRect();
+    var visualRect = resultVisual.getBoundingClientRect();
+    var scale = Math.min(
+      imageRect.width / resultImage.naturalWidth,
+      imageRect.height / resultImage.naturalHeight
+    );
+    var contentWidth = resultImage.naturalWidth * scale;
+    var contentHeight = resultImage.naturalHeight * scale;
+    var baseLeft =
+      imageRect.left - visualRect.left + (imageRect.width - contentWidth) / 2;
+    var baseTop =
+      imageRect.top - visualRect.top + (imageRect.height - contentHeight) / 2;
+
+    regions.forEach(function (region) {
+      var crop = normaliseRegion(region && region.bbox);
+      if (!crop) return;
+      var verdict = region.verdict || "uncertain";
+      var box = document.createElement("div");
+      box.className = "region-box is-" + verdict;
+      box.style.left = baseLeft + crop.x * scale + "px";
+      box.style.top = baseTop + crop.y * scale + "px";
+      box.style.width = crop.width * scale + "px";
+      box.style.height = crop.height * scale + "px";
+
+      var score = Number(region.score);
+      var scoreLabel = isNaN(score)
+        ? "Score unavailable"
+        : Math.round(Math.max(0, Math.min(1, score)) * 100) + "% AI";
+      var label = document.createElement("span");
+      label.className = "region-box-label";
+      label.textContent =
+        (region.type || "Region") +
+        " · " +
+        scoreLabel +
+        " · " +
+        (VERDICT_LABELS[verdict] || verdict);
+      box.appendChild(label);
+      regionOverlay.appendChild(box);
+    });
+  }
+
+  /**
    * Four model bars. A missing / null signal is shown as "Not measured"
    * rather than 0 — 0 would look like "the model said real".
    */
@@ -597,6 +655,13 @@
     if (!resultsStage.classList.contains("is-active")) return;
     if (event.key === "ArrowLeft") goTo(slideIndex - 1);
     if (event.key === "ArrowRight") goTo(slideIndex + 1);
+  });
+
+  window.addEventListener("resize", function () {
+    var item = results[slideIndex];
+    if (item && resultImage.naturalWidth) {
+      renderRegionOverlays((item.data || {}).regions);
+    }
   });
 
   // Lightweight swipe for the slideshow on phones (nav arrows are hidden).
