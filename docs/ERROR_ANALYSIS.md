@@ -682,7 +682,30 @@ a decision rather than a default.
 | 10 | Per-generator specialist zoo | Five one-generator probes combined by `max()`: **0.9042** against one pooled probe's **0.9444** on identical rows. Loses by 0.040, and loses *most* on GPT-image-2 (0.763 vs 0.848) — the generator specialists were supposed to help |
 | 11 | Nonlinear head (MLP-64) on the pooled data | 0.9425 against linear's 0.9444, with double the COCO false positives. Tests the same premise as #10 from the other side: one linear boundary is **not** the bottleneck, data breadth is |
 | 12 | A second foreign dataset (Midjourney, 1,500 imgs) | +0.0307 on the organizer set, **−0.0013** on So-Fake-OOD. Content matching, not artifact learning — §3.2 |
+| 14 | Hard-negative mining on COCO train2017 | Score the 5,000 COCO negatives, oversample the top slice 5-15x. At matched FPR it cuts COCO false positives **60%** (2.32% -> 0.94%) and the corpus-disjoint laion pool **5%** (19.50% -> 18.50%), for 6-15pp of SID tampered recall. Learned "these COCO watermarks are real", not "watermarks are real" |
 | 13 | Per-content-bucket thresholds | Two objectives, both fail. Accuracy-optimal per bucket: FNR 30.69% against a global cut's 30.26% at matched FPR. Equal-FPR per bucket: **34.97%**, worse by 4.7pp. See below |
+
+**§8.14 closes a loop that §7.5, §7.6 and §7.7 all opened, and it is the most
+useful negative result in this document.** Three independent attacks on the
+compositing confusion, all with data:
+
+| attack | in-distribution effect | cross-corpus effect |
+|---|---|---|
+| §7.6 COCO negatives | COCO FP 4x better | control 1.05pp |
+| §8.14 hard-negative mining | COCO FP 60% better | laion 5% better |
+| §7.5 (inverse) more real diversity | SID AUROC 0.9528 -> 0.9884 | COCO FP 4x **worse** |
+
+Every time, a large in-distribution move and a negligible transfer. **That is the
+signature of a representation limit, not a data shortage.** A watermarked
+photograph and an AI-inpainted photograph are apparently not linearly separable
+in frozen CLIP embedding space, so no quantity or targeting of negatives fixes
+it -- we can only memorise which specific watermarked images are real.
+
+What would actually address it: a representation change. `PIPELINE.md` §4.5
+multi-crop at native resolution, a different or unfrozen backbone, or the
+localisation signal from §8.9, which at least *found* the edited cell 73.5% of
+the time and therefore encodes something about WHERE the anomaly is rather than
+only how much of it there is. Reproduce: `scratchpad/hardneg.py`.
 
 **§8.13 is worth stating as a principle: a threshold cannot fix an AUROC gap.**
 §4 shows text-heavy images at 53.1% FNR / 1.0% FPR against faces at 21.5% /

@@ -4,8 +4,10 @@
     python scripts/try_grid.py photo.jpg --save-dir out/    # write the variants out
     python scripts/try_grid.py photo.jpg --chain            # all 14x14 COMPOSED pairs
 
-Shows what predict.py actually ships -- max(general, tampered) -- beside its
-parts, per transform. This is the robustness claim on a single image instead of
+The SHIPPED column comes from predict.score_embeddings, so it is by construction
+the number predict.py emits. The general/tampered/face columns are
+fusion-Platt-calibrated diagnostics on a DIFFERENT scale -- read them for shape,
+never compare them to the shipped column or to each other. This is the robustness claim on a single image instead of
 averaged over 4,198 of them, which is the version you can actually look at.
 
 --chain exists because the official grid, our cache, and therefore every number
@@ -13,7 +15,7 @@ in docs/robustness.md are SINGLE transforms. Real images arrive composed: upload
 resizes, the platform recompresses, someone screenshots the result. Nothing in
 the eval set measures that, so this is the only place it is measured at all.
 
-Every column is P(AI-generated), Platt-calibrated from fusion.npz. The image is
+Every column is P(AI-generated). The image is
 normalised (JPEG q95) and seeded off its own image_id first, exactly as embed.py
 does, so these numbers are comparable to docs/robustness.md.
 """
@@ -26,6 +28,7 @@ import argparse
 import numpy as np
 from PIL import Image
 
+import predict
 from quorum.degrade import FLAT, all_variants, apply, rng_for, variant_name
 from quorum.detectors.general import MODELS
 from quorum.embed import Embedder, image_id, normalise
@@ -61,17 +64,24 @@ def score(imgs, emb, M):
             crops.append(crop)
 
     V = emb.embed_batch(imgs)
+    # THE shipped score, from the one function that defines it. This file used to
+    # re-derive it as max() over fusion-Platt-calibrated branches, which is a
+    # DIFFERENT model: max() is not invariant to rescaling one argument, so it
+    # disagreed with predict.py on the verdict, not just the scale. On
+    # test-images/image.png it read 0.7321 AI-GENERATED against predict.py's
+    # 0.4916 real. Third time a script in here has grown a private copy that
+    # drifted; score_embeddings' own docstring warns about exactly this.
+    shipped = predict.score_embeddings(V)
     Vf = emb.embed_batch(crops) if crops else np.empty((0, 768), np.float32)
     wf, bf, mu, sd = M["face"]
     cal = M["cal"]
 
     out = []
-    for v, (j, px) in zip(V, found):
-        r = {}
+    for v, sh, (j, px) in zip(V, shipped, found):
+        r = {"shipped": float(sh)}
         for n, (w, b) in M["probes"].items():
             ca, cb = cal[f"cal_{n}"]
             r[n] = float(sigmoid(ca * (w @ v + b) + cb))
-        r["shipped"] = max(r["general"], r["tampered"])
         if j is None:
             r["face"], r["px"] = None, 0.0
         else:
