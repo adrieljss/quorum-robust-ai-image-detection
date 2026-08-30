@@ -14,8 +14,8 @@ change; only a threshold-based read of `pred` moves.
 It is a TRADE, not a free win, and both halves belong here:
 
     test_ood clean          acc    prec  recall      F1   COCO FP  tamp rec
-      0.7866 (ships)      0.843   0.903   0.767   0.830      2.2%     0.699
-      0.8523 (cv)         0.828   0.936   0.703   0.803      1.2%     0.639
+      0.8050 (ships)      0.836   0.901   0.749   0.818      8.9%     0.753
+      0.8523 (cv)         0.821   0.926   0.698   0.796      6.3%     0.704
     the model this REPLACED, at its own operating point
       0.766               0.825   0.882   0.751   0.811      8.9%     0.746
 
@@ -23,15 +23,11 @@ The probe underneath changed on 30 Aug (general --plus, docs/ERROR_ANALYSIS.md
 3.1) and AUROC went 0.9085 -> 0.9268, which no threshold can move. So the two
 rows above are the same better model at two defensible cuts:
 
-  0.7866 SHIPS. NOTE THE REFERENCE POOL CHANGED. Until 30 Aug the cut was
-    anchored to "8.9% false positives on COCO val2017", which worked while COCO
-    was photography the model had never seen. It no longer is: the tampered
-    branch now trains on COCO train2017 (ERROR_ANALYSIS 7.6), so COCO val2017 is
-    same-corpus and its 2.2% is an IN-DISTRIBUTION number. Re-anchoring was a
-    repair, not extra tuning -- the old anchor had stopped meaning anything.
-    The budget is now 8.25% on So-Fake-OOD reals, the real pool nothing trains
-    on, which is exactly what the old COCO anchor used to buy. Same policy,
-    honest pool. Costs a caveat, buys FNR 25.4% -> 23.3% and F1 0.821 -> 0.830.
+  0.8050 SHIPS, anchored to 8.25% false positives on So-Fake-OOD reals -- a pool
+    no branch trains on. COCO val2017 is deliberately NOT the anchor any more,
+    even though it is clean again: one pool should not be both the thing we tune
+    against and the thing we report, and ERROR_ANALYSIS 7.7 exists because we
+    ran out of untouched pools once already.
 
   0.8523 is the alternative, and the purer one: cross-validated over calib_ood's
     five generator families, each fold picked on the family its model never saw
@@ -67,9 +63,12 @@ from quorum.embed import Embedder
 
 EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 BATCH = 64
-# Anchored to 8.25% false positives on So-Fake-OOD reals -- the one real pool no
-# branch trains on. COCO val2017 CANNOT be used for this any more: the tampered
-# branch trains on COCO train2017, so COCO false positives are in-distribution.
+# Anchored to 8.25% false positives on So-Fake-OOD reals, a pool no branch trains
+# on. COCO train2017 was REMOVED from the tampered branch on 30 Aug
+# (ERROR_ANALYSIS 7.6, reverted): on the corpus-disjoint holdout it was slightly
+# WORSE, 19.50% against 18.50%, and it cost 7.3pp of tampered recall. What it
+# bought was an in-distribution COCO number. Reverting gave back COCO val2017 and
+# the organizer benchmark as clean evaluation sets, for -0.0063 AUROC.
 #
 # The alternative below is derivation-pure and reads no eval set at all:
 # Cross-validated over calib_ood's five generator families: each fold picks the
@@ -82,7 +81,7 @@ BATCH = 64
 # on calib_ood as if that were held out, and since `general --plus` that set is
 # TRAINING data. Its number is contaminated. Fix it or ignore it; do not paste
 # its output here.
-OPERATING_POINT = 0.7866
+OPERATING_POINT = 0.8050
 SHIFT = float(np.log(OPERATING_POINT / (1 - OPERATING_POINT)))
 
 # How loudly the tampered branch speaks inside max(). NOT a free parameter that
