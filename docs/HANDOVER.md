@@ -10,7 +10,12 @@
 > COCO's 2.32% is in-distribution. The organizer benchmark is partly
 > in-distribution for the same reason. `ERROR_ANALYSIS.md` 7.6.
 >
-> Headline: **0.9318** So-Fake-OOD clean, **8.25%** unseen-photography FPR.
+> Headline: **0.9318** So-Fake-OOD clean. For false positives quote BOTH:
+> **8.25%** on So-Fake-OOD reals (unseen images, shared corpus) and **19.50%**
+> on `real_holdout_laion` (2,000 web photographs, corpus-disjoint, nothing
+> trains on it). The gap is the finding, not an embarrassment: COCO is curated
+> and almost watermark-free, web imagery is saturated with the compositing we
+> systematically misread. `ERROR_ANALYSIS.md` 7.7.
 >
 > Tables below that predate the change are kept deliberately: they record what
 > was measured when each decision was made, and rewriting them would falsify

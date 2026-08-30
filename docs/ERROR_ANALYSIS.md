@@ -24,10 +24,13 @@ rather than pasting them, so a figure cannot outlive the model it illustrates.
 | **FOREIGN tampered, clean** | 5,096 | **0.7334** | 0.5679 | 0.8488 | **0.3237** | 0.4686 | 0.0825 | 0.6763 |
 | **FOREIGN tampered, all 15** | 47,096 | **0.7441** | 0.3610 | 0.9887\* | 0.3350 | 0.5005 | 0.0825 | 0.6650 |
 
-† **Partly in-distribution since 30 Aug.** The organizer set's real half is COCO
-val2017, and the tampered branch now trains on COCO *train2017* (section 7.6).
-Different images, zero overlap, permitted by the brief -- but the same corpus, so
-0.9908 is no longer the externally-comparable number it was. Do not headline it.
+† **Contaminated on BOTH halves since 30 Aug, and this is easy to understate.**
+Its real half is COCO val2017 and the tampered branch now trains on COCO
+*train2017* (section 7.6). Its AI half is WildFake DALL-E and the general probe
+now trains on WildFake Midjourney (section 3.2). Both are different images with
+zero overlap and both are permitted -- but neither is a different *corpus*. The
+AI half is the milder case, since generator-disjointness is the point of that
+test. 0.9908 is not the externally-comparable number it was. Do not headline it.
 
 \* Those rows pit thousands of edited images against 2,096 reals. Precision and
 accuracy there are imbalance artifacts; only AUROC, FPR and recall mean anything.
@@ -47,16 +50,26 @@ val2017 -- one generator against one photo corpus -- and the brief states it
 chosen to control:
 
 ```
-So-Fake-OOD reals, clean   n=2,096   FPR  8.25%   <- THE HONEST NUMBER
-COCO val2017 reals, clean  n=5,000   FPR  2.32%   in-distribution, see 7.6
+laion5b holdout, clean     n=2,000   FPR 19.50%   <- CORPUS-DISJOINT, see 7.7
+laion5b holdout, all 15    n=30,000  FPR 16.30%
+So-Fake-OOD reals, clean   n=2,096   FPR  8.25%   unseen images, shared corpus
+COCO val2017 reals, clean  n=5,000   FPR  2.32%   in-distribution since 7.6
 COCO val2017, all 15 var   n=75,000  FPR  3.60%   in-distribution
 ```
 
 **The reference pool changed on 30 Aug and this is the important line in the
 document.** COCO val2017 used to be our unseen-photography number. It is not any
 more -- the tampered branch trains on COCO train2017, so 2.32% is in-distribution
-and flattering. **So-Fake-OOD reals are now the honest pool**, nothing trains on
-them, and 8.25% is the number to quote. The operating point is anchored to it.
+and flattering. **So-Fake-OOD reals are now the best pool we have** -- no image
+in it is trained on, verified by hash and by embedding cosine -- and 8.25% is the
+number to quote. The operating point is anchored to it.
+
+Be precise about what that buys. It is *unseen images*, not an *unseen corpus*:
+the `calib_ood` reals we train on come from the same So-Fake-OOD collection.
+**On a genuinely unseen corpus of web photographs the rate is 19.50%** (7.7), and
+that is the figure to quote for what a platform would experience. The operating
+point is anchored to 8.25% because that pool is the largest one nothing trains
+on; the holdout is reported, never tuned against.
 
 ---
 
@@ -589,6 +602,67 @@ FNR 25.4% → 23.3%. Reproduce: `scratchpad/coco_neg.py`, `coco_control.py`,
 
 ---
 
+**7.7 The corpus-disjoint false-positive rate is 19.50%, and that is the number
+a platform would actually see.**
+
+Section 9 used to say no corpus-disjoint real pool survived section 7.6. One was
+built on 30 Aug: 2,000 web photographs from WildFake's `Images/Real/laion5b`,
+embedded as `real_holdout_laion` on split `test_holdout`, trained on by nothing.
+Median resolution 800x750. All 15 variants.
+
+| real pool | FPR (clean) | what it is |
+|---|---|---|
+| COCO val2017 | 2.32% | in-distribution since 7.6, and a *curated* corpus |
+| So-Fake-OOD reals | 8.25% | unseen images, shared corpus with `calib_ood` |
+| **laion5b holdout** | **19.50%** | **unseen corpus. Web photographs.** |
+
+**Eight times the COCO number.** All 15 variants: 16.30%, worst `resize05` at
+21.25%, best `crop08` at 7.30%.
+
+The cause is not new, which is what makes it serious. The eight highest-scoring
+false positives were inspected one by one and **all eight are real photographs
+carrying commercial overlay**: a brand logo composited onto a meat product shot,
+three product cutouts on flat white, a URL watermark across a night landscape, a
+nine-panel clothing collage with a text panel, a semi-transparent Chinese
+watermark across an aluminium case. That is exactly section 5's failure mode --
+"a region that did not come from the camera" -- except that on web imagery it is
+not an edge case, it is the *typical* image.
+
+**COCO is a curated corpus with almost no watermarks.** Our 2.32% is not merely
+in-distribution, it is measured on unusually clean photography. Web imagery is
+saturated with the one thing we systematically get wrong.
+
+Both branches degrade, not just the tampered one:
+
+| | COCO val2017 | laion5b holdout |
+|---|---|---|
+| FPR | 2.32% | 19.50% |
+| of flags, tampered branch higher | 77.6% | 55.1% |
+| general branch alone would flag | 0.6% | **11.60%** |
+
+The general branch goes from 0.6% to 11.6%. Cutout-on-flat-white product
+photography reads as *rendered* to a synthetic-image detector, and that is a
+different mechanism from the tampered branch's compositing confusion. Two
+independent failure modes, both amplified by the same corpus.
+
+**Nothing was tuned against this pool and nothing should be.** It is a holdout;
+using it to pick a threshold would destroy the only corpus-disjoint number we
+have. Reported, not optimised.
+
+Caveat: LAION is a web scrape and may contain some genuinely AI-generated images
+mislabelled as real, which would make 19.50% an upper bound. The eight inspected
+were all authentic photographs with overlays, so label noise does not look like
+the driver -- but eight is not a survey.
+
+**For the writeup this is the Impact & Relevance number.** 2.32% is what we can
+claim on a curated benchmark; 19.50% is what a platform ingesting real web
+imagery would experience. Publishing both, and explaining the gap, is a stronger
+position than publishing the flattering one.
+Reproduce: `scratchpad/contam.py`, and the pool itself via
+`scripts/fetch_wildfake.py --zip Images/Real/laion5b.zip --prefix laion5b/imgs`.
+
+---
+
 ## 8. What we tried that did not work
 
 Negative results, kept because they are the evidence that the shipped design is
@@ -671,13 +745,19 @@ Reproduce: `scratchpad/patch_build.py`, `patch_eval.py`.
   cannot see a hard-pasted foreign cell it will never see an inpaint. Now that
   `so_fake_tampered_eval` exists the patch gate could be re-run against real
   foreign edits, and has not been.
-- **COCO val2017 is no longer an unseen-photography set.** Since section 7.6 the
-  tampered branch trains on COCO train2017. Different images, zero overlap,
-  permitted -- but the same corpus, so every COCO false-positive number in this
-  document is in-distribution, and so is the organizer benchmark's real half.
-  The unseen-photography claim now rests on So-Fake-OOD reals alone, a single
-  2,096-image pool. That is thinner evidence than we had before and it is the
-  price of section 7.6.
+- **No corpus-disjoint real pool survives, and that is the real cost of 7.6.**
+  Audited 30 Aug across every train->eval boundary. Image-level leakage is
+  measured and immaterial: zero pairs at >=0.98 cosine anywhere, and dropping
+  every eval row with a >=0.95 training neighbour moves So-Fake-OOD AUROC by
+  0.0001 (0.9318 -> 0.9317) and COCO FPR by 0.02pp. That is not the problem.
+
+  The problem was corpus overlap. SID_Set reals are trained on; COCO val2017 is
+  now same-corpus as training (7.6); So-Fake-OOD test reals share a collection
+  with the `calib_ood` reals in training (3.1). **Fixed on 30 Aug** by building
+  `real_holdout_laion`, 2,000 web photographs on split `test_holdout` that
+  nothing trains on -- see 7.7. It cost us the flattering number: FPR there is
+  **19.50%**, against 2.32% on COCO. Reproduce: `scratchpad/contam.py`,
+  `contam2.py`.
 - **The SID_Set artifact in 7.5 is inferred, not identified.** The evidence that
   one exists is strong -- a 10x difference in edit response and near-perfect
   in-corpus separation on a hard task -- but we have not seen the pixels, so we

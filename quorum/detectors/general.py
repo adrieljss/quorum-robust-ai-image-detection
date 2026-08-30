@@ -246,7 +246,7 @@ def train_general_plus(extra="so_fake_ood", split="calib_ood", also=()):
 
 SOURCES = ("sid_train", "sid_tampered", "sid_calib", "so_fake_ood",
            "sid_tampered_eval", "organizer_val", "so_fake_tampered_eval",
-           "wildfake_midjourney", "coco_train_reals")
+           "wildfake_midjourney", "coco_train_reals", "real_holdout_laion")
 
 
 def check_disjoint(sources=SOURCES):

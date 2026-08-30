@@ -9,6 +9,7 @@ label               0      1
 split                       
 calib            2000   1996
 calib_ood         976   1068
+test_holdout     2000      0
 test_ood         2096   6601
 test_organizer   5000   3719
 train           13000  13449
@@ -17,17 +18,18 @@ train           13000  13449
 ## Sources
 
 ```
-split                  calib  calib_ood  test_ood  test_organizer  train
-source                                                                  
-coco_train_reals           0          0         0               0   5000
-organizer_val              0          0         0            8719      0
-sid_calib               3996          0         0               0      0
-sid_tampered               0          0         0               0   3949
-sid_tampered_eval          0          0      1499               0      0
-sid_train                  0          0         0               0  16000
-so_fake_ood                0       2044      4198               0      0
-so_fake_tampered_eval      0          0      3000               0      0
-wildfake_midjourney        0          0         0               0   1500
+split                  calib  calib_ood  test_holdout  test_ood  test_organizer  train
+source                                                                                
+coco_train_reals           0          0             0         0               0   5000
+organizer_val              0          0             0         0            8719      0
+real_holdout_laion         0          0          2000         0               0      0
+sid_calib               3996          0             0         0               0      0
+sid_tampered               0          0             0         0               0   3949
+sid_tampered_eval          0          0             0      1499               0      0
+sid_train                  0          0             0         0               0  16000
+so_fake_ood                0       2044             0      4198               0      0
+so_fake_tampered_eval      0          0             0      3000               0      0
+wildfake_midjourney        0          0             0         0               0   1500
 ```
 
 ## Variants
