@@ -156,6 +156,80 @@ def train_tampered():
     return fit(X, y), X, y
 
 
+KEEP = ("clean", "jpeg50", "blur10", "noise005")     # sid_train's variant density
+
+
+class Linear:
+    """(w, b) wearing an estimator's face, so auc_by_variant can score it.
+
+    train_general_plus returns folded weights rather than a fitted object, and
+    without this the __main__ tables silently described a DIFFERENT probe from
+    the one that had just been saved.
+    """
+
+    def __init__(self, w, b):
+        self.w, self.b = np.asarray(w).ravel(), float(np.ravel(b)[0])
+
+    def decision_function(self, X):
+        return X @ self.w + self.b
+
+
+def train_general_plus(extra="so_fake_ood", split="calib_ood", also=()):
+    """Spend the calibration set on TRAINING, and rotate calibration across it.
+
+    calib_ood exists to be generator-family-disjoint from test_ood, which makes
+    it the only held-out data we may fit on. It has been doing one job -- Platt
+    scaling -- and measurement says it is worth more as training data: adding its
+    five families lifts the four worst test_ood generators +0.0559 and LOWERS
+    COCO false positives. See docs/ERROR_ANALYSIS.md 3.1.
+
+    So do both. Train on four families, calibrate on the fifth, rotate, and mean
+    the five calibrated weight vectors. Averaging is legitimate here because
+    calibrate() folds Platt into the coefficients: all five live in the same
+    768-d space and differ only in which family tuned the slope, so their mean
+    is the ensemble's linear equivalent at 1x inference cost.
+
+    The rotation is not bookkeeping. The shipped operating point was picked on
+    ONE calibration set with no evidence it would survive another; across these
+    five folds the accuracy-optimal threshold ranges 0.575-0.695, which says
+    calibration-set composition matters and is worth knowing.
+    """
+    Xs, Rs = load("sid_train")
+    for src in also:
+        # Extra generator families, downloaded rather than streamed. Trimmed to
+        # KEEP so a source with a different variant density cannot outvote
+        # sid_train by carrying more rows per image.
+        Xa, Ra = load(src)
+        k = Ra.variant.isin(KEEP).values
+        Xs = np.concatenate([Xs, Xa[k]])
+        Rs = pd.concat([Rs, Ra[k]], ignore_index=True)
+        print(f"  + {src}: {int(k.sum()):,} rows, "
+              f"{Ra.label[k].value_counts().to_dict()}")
+    Xc, Rc = load(extra)
+    cal = (Rc.split == split).values
+    assert cal.any(), f"no {split} rows in {extra}"
+    fams = sorted(Rc.generator[cal & (Rc.label == 1)].unique())
+
+    # Reals here carry generator "unknown", so they cannot be folded by family.
+    # Fold them by IMAGE, or a photo lands in train and calibration at once.
+    rng = np.random.default_rng(0)
+    ids = np.unique(Rc.image_id[cal & (Rc.label == 0)])
+    fold = dict(zip(ids, rng.integers(0, len(fams), len(ids))))
+
+    W, B = [], []
+    for i, f in enumerate(fams):
+        hold = (cal & (Rc.generator == f).values) | (
+            cal & (Rc.label.values == 0)
+            & np.array([fold.get(v, -1) == i for v in Rc.image_id]))
+        tr = cal & ~hold & Rc.variant.isin(KEEP).values
+        clf = fit_general(np.concatenate([Xs, Xc[tr]]),
+                          np.r_[Rs.label.values, Rc.label.values[tr]])
+        w, b = calibrate(clf, Xc[hold], Rc.label.values[hold])
+        W.append(w); B.append(b)
+        print(f"  fold calib={f:12s} train {int(tr.sum()):6,d} extra rows")
+    return np.mean(W, 0), float(np.mean(B))
+
+
 SOURCES = ("sid_train", "sid_tampered", "sid_calib", "so_fake_ood",
            "sid_tampered_eval", "organizer_val")
 
@@ -184,7 +258,14 @@ if __name__ == "__main__":
     ap.add_argument("--check", action="store_true",
                     help="split-disjointness only; do NOT retrain or overwrite the "
                          "shipped .npz files")
-    if ap.parse_args().check:
+    ap.add_argument("--also", nargs="*", default=[],
+                    help="extra training sources for --plus, e.g. wildfake_midjourney")
+    ap.add_argument("--plus", action="store_true",
+                    help="train the general probe on sid_train PLUS calib_ood's "
+                         "generator families, rotating calibration across them "
+                         "(docs/ERROR_ANALYSIS.md 3.1). Overwrites general.npz.")
+    a = ap.parse_args()
+    if a.check:
         check_disjoint()
         raise SystemExit
 
@@ -192,9 +273,15 @@ if __name__ == "__main__":
 
     Xtr, Rtr = load("sid_train")
     print(f"general: train {Xtr.shape}  {Rtr.label.value_counts().to_dict()}")
-    clf = fit_general(Xtr, Rtr.label.values)
-    Xc, yc = calib_rows()
-    save(calibrate(clf, Xc, yc))            # log-odds, or predict.py misreads it
+    if a.plus:
+        w, b = train_general_plus(also=a.also)
+        save((w, b))                        # already calibrated, already folded
+        clf = Linear(w, b)                  # tables must describe what was SAVED
+        print("  NOTE: pair this probe with predict.TAMPERED_SCALE = 1.25")
+    else:
+        clf = fit_general(Xtr, Rtr.label.values)
+        Xc, yc = calib_rows()
+        save(calibrate(clf, Xc, yc))        # log-odds, or predict.py misreads it
 
     try:
         tclf, Xt, yt = train_tampered()

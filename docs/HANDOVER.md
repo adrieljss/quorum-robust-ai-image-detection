@@ -1,5 +1,16 @@
 # Quorum — Data Handover
 
+> **STATE CHANGED 30 Aug.** The general probe was retrained
+> (`general --plus`, `docs/ERROR_ANALYSIS.md` §3.1), the tampered branch was
+> given an explicit scale (`predict.TAMPERED_SCALE = 1.25`), and
+> `OPERATING_POINT` moved 0.766 -> **0.8523**, cross-validated. Headline numbers
+> are now **0.9255** So-Fake-OOD clean and **6.3%** COCO false positives.
+>
+> Tables below that predate that change are kept deliberately: they are the
+> record of what was measured when each decision was made, and rewriting them
+> would falsify that record. **For current numbers use `ERROR_ANALYSIS.md` §1.**
+> Anything here labelled "SHIPPED" with cut 0.766 describes the previous model.
+
 **Status:** all three cached branches complete on every source, `organizer_val`
 included. Face probe, calibration, and fusion all built (Kacey). Text branch cut.
 `predict.py` ships `max(general, tampered)` on measurement — see §5e.
@@ -271,8 +282,62 @@ It is just too small to matter. Full organizer_val gain **+0.0022
 -0.0420 to -0.0409: it lifts every content class uniformly. A branch that fixes
 text-heavy images specifically is not what this is.
 
-Not measured, and what would decide it if anyone revisits: the 15-variant
-degradation grid on a 500-image subsample, ~1.5h. Everything above is clean-only.
+#### The 15-variant grid — run 30 Aug, 2.6h, and it is decisive
+
+Everything above was clean-only. The grid was the run that would decide
+shippability, on 500 label-stratified organizer_val images that have text when
+clean (`text.grid_ids` / `build_crops_grid` / `evaluate_grid` in `text.py`):
+
+```
+variant     detected    rate    AUROC        variant     detected    rate    AUROC
+clean            500  100.0%   0.8284        jpeg30           413   82.6%   0.7550
+jitter02         479   95.8%   0.8349        blur10           401   80.2%   0.7330
+jpeg90           474   94.8%   0.8095        crop08           394   78.8%   0.8234
+noise002         468   93.6%   0.7979        resize05         388   77.6%   0.7313
+blur05           466   93.2%   0.8274        noise01          358   71.6%   0.7961
+jpeg70           456   91.2%   0.7831        blur20           275   55.0%   0.5907
+jpeg50           448   89.6%   0.7716        resize025        241   48.2%   0.5229
+noise005         418   83.6%   0.8119
+```
+
+**Clean 0.8284, worst 0.5229 (`resize025`), drop 0.3055.** That is 2.4x the
+spectral branch's drop (0.127), and spectral is the one already documented as
+"the weak branch". Text would be the least robust thing in the repo by a wide
+margin.
+
+**And the AUROC column is worse than it looks, because the missingness is
+correlated with the label.** Of images that had detectable text when clean, how
+many still do after each transform, split by class:
+
+```
+variant       AI kept  real kept   ratio
+resize025       75.6%      20.8%    3.63x
+blur20          81.6%      28.4%    2.87x
+resize05        91.6%      63.6%    1.44x
+blur10          92.8%      67.6%    1.37x
+noise01          81.6%     61.6%    1.32x
+```
+
+At `resize025` the surviving set is **78% AI**, so the 0.5229 is computed on a
+wildly skewed, non-random subsample. The mechanism is the same one that
+falsified attempt 1: AI-generated text is larger, cleaner and higher-contrast
+than photographed real-world signage, which is shot at an angle, small in frame,
+in bad light. So it survives downscaling and blur far better.
+
+**That is a trap, not just a weakness.** Wired into fusion, `text_present` would
+become a degradation-conditioned label proxy — under heavy degradation "OCR
+found text" *is* evidence of AI, for a reason that has nothing to do with
+detecting AI and everything to do with our datasets' composition. It would score
+well here and not transfer.
+
+Compare `HANDOVER-MODELS.md` §8, where the face branch's blur anomaly was tested
+for exactly this and survivorship was **ruled out** (the rise held on the
+identical images present at both settings), leaving shortcut learning. Here
+survivorship is real, measured, and dominant.
+
+**Cut, on three independent grounds now**: transfer below chance (attempt 1),
++0.0022 and the wrong gap (attempt 2), and label-correlated collapse under the
+grid the brief actually grades (this run). Not "we ran out of time".
 
 ### 5c. Fusion — the real work
 
@@ -882,6 +947,47 @@ pool it was scored against, not of the branch.
 
 **`noise01` is its worst variant in all three pools.** Additive noise, not blur
 or JPEG. If the judges' grid leans on noise, this is where we lose.
+
+### The far worse weak spot, found 30 Aug: it does not transfer
+
+The table above varies the NEGATIVES and finds the branch is partly measuring
+"not a SID_Set real". Varying the POSITIVES is worse. So-Fake-OOD ships its own
+`TAMPERED` class, which `stream_embed.py` skips unless `--tampered` is passed, so
+it had never been embedded. 3,000 of them now are, as `so_fake_tampered_eval`.
+
+```
+scorer            SID_Set tampered      So-Fake-OOD tampered
+                  (in-dataset)          (FOREIGN)
+general alone           0.5399                0.7100
+tampered alone          0.9528                0.6251
+max()  -- shipped       0.9135                0.7260
+recall @ op point       70.2%                 26.0%
+```
+
+**The branch collapses to 0.6251 and its own recall falls to 7.8%.** On foreign
+edits the GENERAL branch (0.7100) outscores the TAMPERED branch (0.6251) at the
+tampered branch's own task, which inverts the complementarity argument in
+`HANDOVER-MODELS.md` §11 -- that argument holds only inside SID_Set.
+
+**Why, measured.** Editing moves the tampered branch **+0.888** within SID_Set
+(0.036 -> 0.924) and only **+0.087** within So-Fake-OOD (0.090 -> 0.176) -- ten
+times less. And 0.036 -> 0.924 is too clean for a genuinely hard task: the branch
+found a CONSTRUCTION ARTIFACT of SID_Set's tampered split, not a concept. Foreign
+fully-synthetic images score just 0.146 on it, so it is not firing on synthetic
+content either. This also explains §5g at last -- if the branch fits a dataset
+signature, more real-photo diversity sharpens it and generalises nothing, which
+is exactly what that experiment measured.
+
+So the branch learned SID_Set's specific inpainting pipeline, not "editing". Every
+tampered figure in this document -- 0.9528, 0.9035, 0.9521, the §5h decision --
+is a same-dataset number and must be quoted with that qualifier.
+
+**Still not a reason to drop it.** `max()` remains the better scorer on BOTH
+datasets, and dropping the branch returns SID_Set's edited task to a coin flip
+(0.5399). But on foreign edits `max()` beats general-alone by only +0.016 while
+the tampered branch causes 89.4% of our COCO false positives, so §5h is a much
+closer call than it reads. Full write-up: `docs/ERROR_ANALYSIS.md` §7.5.
+Reproduce: `scratchpad/tamp_transfer.py`.
 
 ### `figures-no-tampered/` — the counterfactual, kept
 

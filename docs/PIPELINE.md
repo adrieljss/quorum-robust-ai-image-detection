@@ -362,8 +362,17 @@ highest-precision signals available and costs no training data.
 >
 > A second design — CLIP on perspective-warped OCR crops, 769-d — does work
 > (transfer 0.8083) but is worth +0.0022 and does not close the text-heavy
-> content gap it was built for. Both attempts, with numbers:
-> `HANDOVER.md` §5b. Code: `quorum/detectors/text.py`, wired into nothing.
+> content gap it was built for.
+>
+> **The 15-variant grid then closed it for good**: clean 0.8284 to 0.5229 at
+> `resize025`, a **0.3055 drop** — 2.4x the spectral branch's, and spectral is
+> the documented weak one. Worse, OCR detection fails 3.63x more often on real
+> photographs than on AI ones under that transform (20.8% vs 75.6% retained), so
+> `text_present` would enter fusion as a degradation-conditioned label proxy.
+> Whatever OCR *is* reading here, it is not glyph deformation.
+>
+> All three attempts, with numbers: `HANDOVER.md` §5b. Code:
+> `quorum/detectors/text.py`, wired into nothing.
 
 ---
 

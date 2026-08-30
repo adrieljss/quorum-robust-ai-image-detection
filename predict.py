@@ -14,17 +14,27 @@ change; only a threshold-based read of `pred` moves.
 It is a TRADE, not a free win, and both halves belong here:
 
     test_ood clean          acc    prec  recall      F1   COCO FP  tamp rec
-      0.500               0.812   0.771   0.890   0.826     27.6%     0.881
+      0.8523 (ships)      0.821   0.926   0.698   0.796      6.3%     0.704
+      0.8057 (policy)     0.839   0.906   0.758   0.825      8.9%     0.754
+    the model this REPLACED, at its own operating point
       0.766               0.825   0.882   0.751   0.811      8.9%     0.746
-    test_ood all 15 var
-      0.500               0.810   0.779   0.868   0.821     27.6%
-      0.766               0.805   0.889   0.698   0.782      8.9%
 
-Precision +0.09 and false positives on real photography cut ~3x. Paid for in
-recall (-0.11 clean, -0.14 pooled) and F1 (-0.012, -0.032). Accuracy improves on
-clean and is a wash pooled. **0.5 is very nearly F1-optimal** -- the F1 argmax is
-0.506 -- so if this is ever scored on F1, set OPERATING_POINT = 0.5 and the shift
-becomes a no-op.
+The probe underneath changed on 30 Aug (general --plus, docs/ERROR_ANALYSIS.md
+3.1) and AUROC went 0.9085 -> 0.9268, which no threshold can move. So the two
+rows above are the same better model at two defensible cuts:
+
+  0.8523 SHIPS. Derived by cross-validation over calib_ood's five generator
+    families -- each fold's threshold is picked on the one family that fold's
+    model never saw, then averaged (0.585/0.600/0.705/0.665/0.635). No model
+    scores its own training data, so this reads NO evaluation set at all.
+    It cuts false accusations on real photography 8.9% -> 6.3%, a 30% drop.
+
+  0.8057 is the alternative: hold the OLD policy (8.9% COCO FP) constant across
+    the model change. It strictly dominates the model it replaced on every
+    axis -- same false positives, +0.7pp recall, +0.025 precision, +0.015
+    accuracy, +0.015 F1, +0.8pp tampered recall. Legitimate, but it READS COCO
+    to place the cut, so it is a preserved decision rather than an independent
+    derivation. Use it if this is ever scored on F1.
 
 Chosen anyway: at a realistic base rate most uploads are genuine, so a false
 accusation is the expensive error, and F1 weights a missed fake and a libelled
@@ -54,19 +64,40 @@ from quorum.embed import Embedder
 
 EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 BATCH = 64
-# Picked on calib_ood (family-disjoint from test_ood, 30,660 rows, all 15
-# variants). Accuracy is flat across the plateau, so its high end is taken:
-# every extra positive there is a real photograph accused of being fake.
+# Cross-validated over calib_ood's five generator families: each fold picks the
+# high end of its accuracy plateau on the family that fold's model never saw,
+# and the five are averaged. Accuracy is flat across the plateau, so its high end
+# is taken -- every extra positive there is a real photograph accused of being
+# fake.
 #
-# DELIBERATELY NOT what pick_threshold.py now prints. Since the ridge probe
-# landed that script says 0.6920, which is accuracy-optimal but costs:
-#     0.766   acc 0.8247   prec 0.8816   COCO false positives  8.9%
-#     0.692   acc 0.8268   prec 0.8460   COCO false positives 13.7%
-# +0.002 accuracy for 54% more false accusations against real photographs. The
-# script optimises accuracy alone and cannot see that trade; this file makes it.
-# Revisit if the task is ever scored on F1 -- 0.692 wins there (0.8222/0.8109).
-OPERATING_POINT = 0.7660
+# WARNING: scripts/pick_threshold.py DISAGREES and is currently wrong. It picks
+# on calib_ood as if that were held out, and since `general --plus` that set is
+# TRAINING data. Its number is contaminated. Fix it or ignore it; do not paste
+# its output here.
+OPERATING_POINT = 0.8523
 SHIFT = float(np.log(OPERATING_POINT / (1 - OPERATING_POINT)))
+
+# How loudly the tampered branch speaks inside max(). NOT a free parameter that
+# was fitted -- a policy dial, like OPERATING_POINT above, and it was hiding.
+#
+# max(sigmoid(g), sigmoid(t)) is not invariant to rescaling g, so the general
+# branch's Platt SLOPE silently decides how often the tampered branch wins the
+# max. Across five calibration folds that moved COCO false positives from 3.8%
+# to 12.9% AT FIXED RECALL -- a balance nobody chose, inherited from whichever
+# generator families happened to sit in the calibration set. Naming it here makes
+# it a decision instead of an accident.
+#
+# Measured on the --plus probe, threshold held at 75% So-Fake-OOD recall:
+#     alpha   COCO FP   tampered recall
+#     0.6        2.3%        53.0%
+#     1.0        6.2%        69.5%
+#     1.25       8.5%        74.6%   <- holds the shipped policy
+#     1.5       10.5%        77.4%
+#
+# 1.0 is a no-op and pairs with the DEFAULT probe. 1.25 pairs with the --plus
+# probe and is what SHIPS. The two are calibrated together: revert one without
+# the other and the operating point moves silently.
+TAMPERED_SCALE = 1.25
 
 
 def _probe(path):
@@ -75,7 +106,17 @@ def _probe(path):
 
 
 def load_probes():
-    return [_probe(MODEL)] + ([_probe(MODEL_TAMPERED)] if MODEL_TAMPERED.exists() else [])
+    """[(w, b)] per branch, tampered pre-scaled by TAMPERED_SCALE.
+
+    Scaling here rather than in score_embeddings so every caller -- the demo,
+    the figures, pick_threshold -- inherits the same balance without knowing the
+    dial exists. The scale is linear, so it folds into (w, b) like Platt does.
+    """
+    probes = [_probe(MODEL)]
+    if MODEL_TAMPERED.exists():
+        w, b = _probe(MODEL_TAMPERED)
+        probes.append((TAMPERED_SCALE * w, TAMPERED_SCALE * b))
+    return probes
 
 
 def score_embeddings(v, probes=None) -> np.ndarray:

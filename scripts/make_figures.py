@@ -41,6 +41,7 @@ matplotlib.use("Agg")                       # no display on a headless run
 import matplotlib.pyplot as plt
 import numpy as np
 
+from predict import OPERATING_POINT, TAMPERED_SCALE
 from quorum.detectors.general import MODELS, load
 
 # The next four are rebound by --no-tampered in __main__. Module globals rather
@@ -55,7 +56,11 @@ NO_TAMPERED = False
 BLUE, RED, GREY = "#2B4A9B", "#B4462F", "#9AA3AF"
 GREEN, AMBER = "#2A7355", "#B0741B"
 PURPLE = "#6B4A9B"          # the tampered/edited task, wherever it appears
-OLD_THR, NEW_THR = 0.5, 0.766
+# Imported, never pasted. This file's whole promise is that a figure cannot
+# outlive the result it illustrates, and a hardcoded 0.766 broke exactly that
+# when the probe was retrained on 30 Aug -- the figures would have kept drawing
+# the previous model's operating point against the new model's scores.
+OLD_THR, NEW_THR = 0.5, OPERATING_POINT
 
 # Short keys for the data, display labels separately. Keying the dict on the
 # rendered label means every caller repeats a multi-line string literal, and one
@@ -86,8 +91,15 @@ def save(fig, name):
 
 # ---------------------------------------------------------------- data ------
 def probe(name, X):
+    """Raw branch probability, tampered pre-scaled exactly as predict.py does.
+
+    Without the scale these figures plot a DIFFERENT scorer from the one that
+    ships: max() is not invariant to rescaling one of its arguments, so the
+    general/tampered balance drawn here would not be the balance deployed.
+    """
     z = np.load(MODELS / f"{name}.npz")
-    return 1 / (1 + np.exp(-(X @ z["w"].ravel() + float(z["b"].ravel()[0]))))
+    a = TAMPERED_SCALE if name == "tampered" else 1.0
+    return 1 / (1 + np.exp(-a * (X @ z["w"].ravel() + float(z["b"].ravel()[0]))))
 
 
 def populations():
@@ -132,6 +144,12 @@ def repick():
 
     Same rule as pick_threshold.py -- the high end of the accuracy plateau on
     calib_ood -- so the two constants stay comparable.
+
+    CAVEAT since 30 Aug: `general --plus` moved calib_ood into the TRAINING set,
+    so this now picks on data the probe has seen. It is only used for the
+    --no-tampered counterfactual, where an approximately-right cut is enough to
+    draw the comparison, but do not lift this number into predict.py. The live
+    rule there is cross-validated across calib_ood's five families.
     """
     from pick_threshold import plateau, shipped as raw
     X, R = load("so_fake_ood")
@@ -187,14 +205,14 @@ def fig_threshold(D):
     ax.set_ylabel("rate")
     ax.set_xlim(0, 1); ax.set_ylim(0, 1)
     ax.legend(fontsize=8.5, frameon=False, loc="center left", bbox_to_anchor=(1.01, 0.5))
-    fig.text(0.0, -0.125,
+    fig.text(0.0, -0.155,
              f"AUROC is identical everywhere on this axis. Moving the cut from 0.500 to {NEW_THR:.3f} "
              "buys precision and costs recall;\nthe amber curve is the one nobody was watching "
              f"— {np.interp(OLD_THR, t, coco):.1%} of ordinary photographs flagged as AI at the old default.\n"
              f"The dotted line is the organizer set's fake half (DALL·E 3, WildFake Advanced): "
              f"{np.interp(NEW_THR, t, dalle):.1%} of it is still caught at {NEW_THR:.3f}, against "
-             f"{np.interp(NEW_THR, t, rec):.1%}\non So-Fake-OOD. The threshold was picked on "
-             "So-Fake-OOD and costs the organizer benchmark nothing — that set is the easier one."
+             f"{np.interp(NEW_THR, t, rec):.1%}\non So-Fake-OOD. The cut was picked WITHOUT "
+             "reading either curve: cross-validated over calib_ood's five generator families,\neach fold scored on the one it never trained on."
              f"\nThe purple curve is the third task, the one neither eval set contains: {np.interp(NEW_THR, t, edit):.1%} of locally-edited"
              f" photographs are caught at {NEW_THR:.3f}, against {np.interp(OLD_THR, t, edit):.1%} at 0.500.",
              fontsize=8.2, color="#555C66", ha="left")
@@ -450,6 +468,16 @@ def fig_benchmarks():
             ("SID tampered\nlocally edited vs So-Fake-OOD reals",
              np.concatenate([Xt, Xo[real]]),
              pd.concat([Rt, Ro[real]], ignore_index=True))]
+    # The same task on a FOREIGN corpus of edits. The tampered branch trains on
+    # SID_Set, so every other tampered row here is a same-dataset number; this
+    # is the one that is not. See docs/ERROR_ANALYSIS.md 7.5.
+    try:
+        Xf, Rf = load("so_fake_tampered_eval")
+        SETS.append(("So-Fake-OOD tampered\nFOREIGN edits, same reals",
+                     np.concatenate([Xf, Xo[real]]),
+                     pd.concat([Rf, Ro[real]], ignore_index=True)))
+    except FileNotFoundError:
+        print("  (no so_fake_tampered_eval shards -- foreign row skipped)")
 
     rows = {}
     for label, X, R in SETS:
@@ -465,7 +493,7 @@ def fig_benchmarks():
     headline = next(v[0] for (lab, sc), v in rows.items()
                     if lab.startswith("So-Fake-OOD") and sc == ship)
 
-    fig, ax = plt.subplots(figsize=(9.6, 5.4))
+    fig, ax = plt.subplots(figsize=(9.6, 5.4 + 1.8 * (len(SETS) - 3)))
     ticks, y = [], 0
     for (label, scorer), (clean, worst, where) in rows.items():
         c = BLUE if scorer.startswith("general") else RED
@@ -489,15 +517,15 @@ def fig_benchmarks():
     # combiner table maxes the PLATT-CALIBRATED branches instead and reads
     # 0.9114/0.8771 on so_fake_ood -- a different model, not this one.
     style(ax, "Every eval set, general alone against the shipped max()")
-    fig.text(0.0, -0.26,
+    fig.text(0.0, -0.20 * 5.4 / (5.4 + 1.8 * (len(SETS) - 3)),
              "The organizer set is the only externally-comparable number we get, and it is the "
-             "easiest of the three: DALL\u00b7E 3 is\na softer target than So-Fake-OOD's generator "
+             "easiest of the four: DALL\u00b7E 3 is\na softer target than So-Fake-OOD's generator "
              f"families, so {headline:.4f} stays the headline claim.\n"
              "On the organizer set the shipped max() is WORSE than the general probe alone. It "
              "contains no locally-edited\nimages, so the tampered branch can only add false "
              f"positives there.\nThe third pair is the reverse case: on "
              f"locally-edited photographs\ngeneral alone scores {rows[(SETS[2][0], 'general alone')][0]:.4f} \u2014 a coin flip \u2014 and {rows[(SETS[2][0], 'general alone')][1]:.4f},\n"
-             "below chance, at its worst variant. "
+             "below chance, at its worst variant. The FOURTH pair is the one that should worry us:\nthe same editing task on FOREIGN edits, where the tampered branch falls to 0.6251\nalone and the general branch outscores it (ERROR_ANALYSIS 7.5). "
              + ("This run DROPS tampered: the 'general alone' row of each pair is what now ships,"
                 + "\nand the max() row is what it replaced."
                 if NO_TAMPERED else

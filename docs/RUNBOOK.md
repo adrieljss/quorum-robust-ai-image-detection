@@ -811,6 +811,7 @@ X, rows = load_source("sid_train")    # X (N,768) aligns 1:1 with rows
 | Fusion | `detectors/text.py`, `detectors/spectral.py` | `PIPELINE.md` §6, §7 |
 | Data/Eval | `eval_grid.py` — the robustness table | `SPEC.md` Phase 3 |
 | Data/Eval | `make_figures.py` — all six figures, recomputed from cache | `HANDOVER.md` §5h |
+| Data/Eval | `error_cases.py` — the ten stable errors; needs organizer_val PIXELS | `ERROR_ANALYSIS.md` §5 |
 | Frontend | demo against `predict.py` output | `SPEC.md` §8 |
 | Frontend | error analysis note | `SPEC.md` Phase 6 |
 

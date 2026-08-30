@@ -1,4 +1,15 @@
-"""Pick predict.py's operating point on calib_ood. Prints the constant to paste.
+"""INVALID since 30 Aug -- do not trust this script's number.
+
+It picks the operating point on calib_ood, which was held out when this was
+written. `python -m quorum.detectors.general --plus` moved calib_ood into the
+TRAINING set (docs/ERROR_ANALYSIS.md 3.1), so this now scores a model on its own
+training data and reports a threshold that is too low.
+
+The live rule is the cross-validated one in predict.py: pick per fold on the one
+generator family that fold's model never saw, then average. Port it here or
+delete this file; leaving it runnable and wrong is the worst of the three.
+
+Pick predict.py's operating point on calib_ood. Prints the constant to paste.
 
     python scripts/pick_threshold.py
 
@@ -25,15 +36,21 @@ def sigmoid(x):
 
 
 def shipped(X, names=("general", "tampered")):
-    """Exactly what predict.py computes: raw sigmoids, no Platt, then max.
+    """Exactly what predict.py computes: raw sigmoids, tampered scaled, then max.
 
     `names` is a knob for asking what a subset of the branches would do -- a
     one-branch call is still a valid scorer, so reduce rather than maximum(a, b).
     """
+    from predict import TAMPERED_SCALE
     out = []
     for n in names:
         z = np.load(MODELS / f"{n}.npz")
-        out.append(sigmoid(X @ z["w"].ravel() + z["b"].ravel()[0]))
+        # The tampered branch carries an explicit scale since 30 Aug. max() is
+        # NOT invariant to rescaling one argument, so omitting it here makes this
+        # a different scorer from the one that ships -- which is precisely the
+        # drift predict.self_check exists to catch, and did.
+        a = TAMPERED_SCALE if n == "tampered" else 1.0
+        out.append(sigmoid(a * (X @ z["w"].ravel() + z["b"].ravel()[0])))
     return np.maximum.reduce(out)
 
 

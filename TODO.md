@@ -154,8 +154,19 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
       [+0.0015, +0.0029]** on organizer_val, and it lifts every content class
       uniformly, so it does **not** close the text-heavy gap it was built for
       (-0.0420 -> -0.0409). Code in `quorum/detectors/text.py`, untracked, wired
-      into nothing. Not measured: the 15-variant grid, ~1.5h on a 500-image
-      subsample — that is the run that would decide it
+      into nothing
+- [x] **The 15-variant grid — run 30 Aug, 2.6h, and it settles the question.**
+      Clean 0.8284, worst **0.5229** (`resize025`), drop **0.3055** — 2.4x the
+      spectral branch's drop, and spectral is the documented weak one. OCR
+      detection itself collapses: 48.2% at `resize025`, 55.0% at `blur20`. And
+      the loss is **label-correlated** — real photographs lose detectable text
+      **3.63x** more often than AI ones (20.8% vs 75.6% retained at
+      `resize025`), because AI text is larger, cleaner and higher-contrast than
+      signage photographed at an angle in bad light. So the surviving set is 78%
+      AI and the AUROC on it is a survivorship artifact, and `text_present`
+      wired into fusion would be a degradation-conditioned label proxy that
+      cannot transfer. **Cut on three independent grounds, none of them budget.**
+      `HANDOVER.md` §5b
 
 ---
 
@@ -318,8 +329,14 @@ not the training.
 
 Feeds Innovation & Problem Insight at 20%. Not an afterthought.
 
-- [ ] 3–5 representative **false positives**, each with a hypothesis
-- [ ] 3–5 representative **false negatives**, same
+- [x] 3–5 representative **false positives**, each with a hypothesis --
+      `ERROR_ANALYSIS.md` §5, `docs/figures/error-cases.png`. **Four of the five
+      are one mode**: a watermark, a collage or a printed graphic inside a real
+      photo. The tampered branch is the higher score in **89.4%** of all COCO
+      false positives; the general branch alone would flag only 1.1%
+- [x] 3–5 representative **false negatives**, same -- §6. Three modes:
+      non-photographic style (line art, manga), garbled text in a photorealistic
+      render, and images with no high-frequency content left to read
 - [x] Two concrete cases already banked: a FLUX_2 face the general probe rates
       0.5438 (a coin flip) and the face branch catches at 0.9567 — the
       complementarity argument in one image; and a TAMPERED image where both
@@ -346,9 +363,53 @@ Feeds Innovation & Problem Insight at 20%. Not an afterthought.
       The two readings of "robust" disagree and both are real: the branch makes
       transform-robustness 6x worse on the organizer set (drop 0.0121 ->
       0.0773) and is the only thing that survives editing. `HANDOVER.md` §5h
-- [ ] Write the Error Analysis Note itself. **The material is now banked** —
-      §5h is most of it, and `docs/figures-no-tampered/` is the six-figure
-      counterfactual. This is assembly, not research
+- [x] **Write the Error Analysis Note itself** -- `docs/ERROR_ANALYSIS.md`,
+      30 Aug. Nine sections: the scorecard, failure by transformation, by
+      generator, by content bucket, both sets of case studies, four measured
+      trade-offs, the nine negative results, and its own limitations
+- [x] **The blind spot is FIXABLE and we chose not to spend it** -- adding
+      calib_ood's five unseen generator families to sid_train lifts the four
+      worst generators **+0.0559** (seedream4.5 +0.0854, nano_banana_2 +0.0620)
+      and *lowers* COCO FP 1.2% -> 0.6%. The backbone is not the ceiling: an
+      in-distribution probe on those families reaches 0.84-0.97, so CLIP does
+      encode the artifacts. Needs no new dataset -- split calib_ood 4 families
+      for training, hold the 5th for Platt. NOT DONE: it moves every AUROC in
+      five documents and all six figures, and judging weights accuracy at zero.
+      Revisit only after the demo, README and video exist. `ERROR_ANALYSIS.md` §3.1
+- [x] **Failure tracks generator RECENCY, not family** -- the headline finding
+      of the note. Every second-generation model is beaten by its own
+      predecessor: GPT-image-2 70.2% FNR vs GPT4o 15.9%, nano_banana_2 59.4% vs
+      nano_banana 14.0%, seedream4.5 40.7% vs Seedream3.0 26.6%. A frozen 2023
+      backbone has never seen a 2026 generator's artifacts. Not a tuning problem
+- [x] Per-content-bucket AUROC (SPEC Phase 6 asks for it) -- range **0.1043**
+      across eight CLIP zero-shot buckets, so we are partly reading semantics and
+      say so. **Text-heavy is the worst FNR bucket at 52.4%**, which is the
+      measured version of the two garbled-text false negatives
+- [ ] **Fix two stale constants in `predict.py`'s docstring** -- its `max`
+      figures (0.9189/0.8921) predate the ridge probe and re-measure to
+      0.9085/0.8731; "the F1 argmax is 0.506" re-measures to 0.532. Neither
+      changes a decision, both would embarrass us if a judge re-ran them.
+      `ERROR_ANALYSIS.md` §7.4
+
+---
+
+### Open, found 30 Aug — the tampered branch fits a dataset, not a concept
+
+- [ ] **Identify the SID_Set tampered artifact.** Editing moves the branch +0.888
+      inside SID_Set and +0.087 outside it, and 0.036 -> 0.924 is too clean for a
+      genuinely hard task. Something about how SID_Set BUILT its tampered split is
+      being detected. Re-stream ~200 `sid_tampered` images with `--save-images`
+      and compare them to `sid_train` reals on: JPEG quantisation tables,
+      resolution, EXIF, and re-encode count. `ERROR_ANALYSIS.md` §7.5
+- [ ] **Decide what this means for the shipped claim.** `max()` still wins on both
+      corpora, so nothing has to change today -- but the headline "0.9035 on
+      locally-edited images" is a same-dataset number and the honest
+      cross-dataset figure is **0.7260** with 26% recall. Both belong in the
+      Devpost description, not just the flattering one
+- [ ] If time: retrain the tampered branch on SID + So-Fake-OOD edits TOGETHER
+      and see whether a two-corpus fit generalises where a one-corpus fit did not.
+      `so_fake_tampered_eval` is currently `test_ood`, so this needs a fresh
+      `--tampered` pull assigned to `train`, NOT a re-split of the eval set
 
 ---
 
@@ -388,7 +449,7 @@ cheap to find early and expensive to find in the last 48 hours.
 - [ ] Devpost description — approach, tools, models, libraries, datasets
 - [ ] Demo video on YouTube, public, end-to-end, **no third-party trademarks**
 - [ ] Robustness summary attached (Stage 4)
-- [ ] Error analysis note attached (Stage 5)
+- [x] Error analysis note attached (Stage 5) -- `docs/ERROR_ANALYSIS.md`
 
 ### Positioning — two arguments that are ours to make
 
