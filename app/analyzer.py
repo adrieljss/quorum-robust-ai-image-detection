@@ -13,11 +13,18 @@ Notes worth keeping in mind:
     max() on So-Fake-OOD -- don't swap this back without re-checking those
     numbers. fusion.npz is still used here, just for its Platt calibration,
     not its verdict.
-  - signals.text, signals.regularity, degradation_estimate, provenance.c2pa
-    are always None -- no trained model behind any of them yet (text branch
-    cut, spectral detector never written, degradation head never persisted,
-    provenance.py unbuilt, see TODO.md). A number here would be fabricated,
-    not measured, so leave them null until a real model exists.
+  - signals.text, degradation_estimate, provenance.c2pa are always None --
+    no trained, saved model behind any of them (text branch has two
+    experimental attempts in quorum/detectors/text.py, neither with a
+    saved .npz; degradation head never persisted; provenance.py unbuilt,
+    see TODO.md). A number here would be fabricated, not measured.
+  - signals.regularity is always None for a different reason: the spectral
+    branch (quorum/detectors/spectral.py) DOES exist and IS measured, but
+    its own file says it must not enter the combiner -- 0.6736 clean AUC,
+    collapsing to 0.5471 under noise, worse than the shipped probe alone in
+    every configuration tested (TODO-GENERAL-SPECTRAL.md). This is a
+    deliberate exclusion, not a missing piece -- do not wire it in without
+    re-checking those numbers first.
   - regions: at most one entry, type "face". Same rule as above -- no
     trained probe, no entry, so an empty list means "nothing scorable
     found," not "nothing was checked." Only the single largest face is
@@ -89,9 +96,15 @@ class _State:
             self.face_px_sd = float(z["px_sd"])
 
         with np.load(FUSION_MODEL) as z:  # calibration only, not fusion's verdict
-            self.cal_general = (float(z["cal_general"][0]), float(z["cal_general"][1]))
             self.cal_face = (float(z["cal_face"][0]), float(z["cal_face"][1]))
             self.cal_tampered = (float(z["cal_tampered"][0]), float(z["cal_tampered"][1]))
+            # cal_general is intentionally NOT loaded. The current general.npz
+            # update, that probe's Platt scaling is folded directly into its
+            # saved weights (quorum/detectors/general.py:calibrate(), confirmed
+            # in predict.py's own docstring), so general_raw is already a
+            # calibrated logit. fusion.npz's cal_general is a leftover pair
+            # fitted against the OLD (pre-fold) general probe; applying it here
+            # would double-calibrate and produce a wrong signals.general value.
 
 
 def _get_state() -> _State:
@@ -112,6 +125,14 @@ def warm_up() -> None:
 def _platt(raw: float, ab: Tuple[float, float]) -> float:
     a, b = ab
     return float(1.0 / (1.0 + np.exp(-(a * raw + b))))
+
+
+def _sigmoid(raw: float) -> float:
+    """Plain sigmoid, for a raw score that is already a calibrated logit
+    (currently: general_raw, since general.npz's Platt fit is folded into its
+    weights). Use _platt() instead for a branch whose raw decision value still
+    needs its own (a, b) applied."""
+    return float(1.0 / (1.0 + np.exp(-raw)))
 
 
 def _verdict_from_score(score: float) -> str:
@@ -243,7 +264,7 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     confidence = float(st.shipped.score_embeddings(general_vec[None, :], st.probes)[0])
     verdict = _verdict_from_score(confidence)
 
-    general_cal = _platt(general_raw, st.cal_general)
+    general_cal = _sigmoid(general_raw)
     tampered_cal = _platt(tampered_raw, st.cal_tampered) if tampered_raw is not None else 0.5
 
     face_cal = None
@@ -287,4 +308,5 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
         "reliability": reliability,
         "regions": regions,
     }
+ 
  
