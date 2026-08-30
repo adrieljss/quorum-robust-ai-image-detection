@@ -160,7 +160,27 @@ def verdict(pred) -> str:
     return "AI" if pred >= 0.5 else "real"
 
 
-def score_variants(path, emb, probes) -> dict:
+BRANCH_NAMES = ("general", "tampered")
+
+
+def branch_scores(v, probes) -> dict:
+    """Each branch on the SAME scale as `pred`, so max(branches) == pred exactly.
+
+    Shifted individually rather than shown raw. A raw sigmoid would be a
+    different scale from the emitted score and invite exactly the comparison that
+    made try_grid.py disagree with this file on a verdict -- the numbers here are
+    the ones that actually competed in the max().
+
+    face and spectral are absent on purpose: they are not in the shipped scorer
+    (measured a wash and worse respectively, ERROR_ANALYSIS 8.6/8.7), and pulling
+    the face detector in would add a model and an ONNX dependency to the
+    deliverable for a branch that does not vote.
+    """
+    return {n: round(float(1 / (1 + np.exp(-(v @ w + b - SHIFT)))), 4)
+            for n, (w, b) in zip(BRANCH_NAMES, probes)}
+
+
+def score_variants(path, emb, probes, with_branches=False) -> dict:
     """Every degradation variant of one image, scored, nothing written to disk.
 
     The image is normalised (JPEG q95) and the grid seeded off its image_id
@@ -179,9 +199,12 @@ def score_variants(path, emb, probes) -> dict:
     names = ["clean"] + [nm for nm, *_ in specs]
     out = {}
     for i in range(0, len(imgs), BATCH):
-        for nm, v in zip(names[i:i + BATCH],
-                         score_embeddings(emb.embed_batch(imgs[i:i + BATCH]), probes)):
-            out[nm] = {"pred": round(float(v), 4), "verdict": verdict(v)}
+        V = emb.embed_batch(imgs[i:i + BATCH])
+        for nm, vec, v in zip(names[i:i + BATCH], V, score_embeddings(V, probes)):
+            rec = {"pred": round(float(v), 4), "verdict": verdict(v)}
+            if with_branches:
+                rec["branches"] = branch_scores(vec, probes)
+            out[nm] = rec
     return out
 
 
@@ -195,7 +218,7 @@ def to_records(paths, scores) -> list:
             for p, v in zip(paths, scores)]
 
 
-def score_all(paths) -> np.ndarray:
+def score_all(paths, keep_embeddings=False):
     """max(P_synthetic, P_tampered) -- either one firing means AI touched it.
 
     ponytail: max, not a learned combiner, and measurement says keep it that
@@ -205,12 +228,20 @@ def score_all(paths) -> np.ndarray:
     locally-edited photo is globally authentic.
     """
     probes = load_probes()
-    emb, out = Embedder(), []
+    emb, out, vecs = Embedder(), [], []
     for i in range(0, len(paths), BATCH):
         imgs = [Image.open(p).convert("RGB") for p in paths[i:i + BATCH]]
-        out.append(score_embeddings(emb.embed_batch(imgs), probes))
+        V = emb.embed_batch(imgs)
+        out.append(score_embeddings(V, probes))
+        if keep_embeddings:
+            # Handing these back is not an optimisation, it is a CORRECTNESS fix.
+            # Re-embedding one image to report its branch scores gave a different
+            # answer from the batch-of-64 pass -- fp16 matmuls are not invariant
+            # to batch shape, and pred disagreed with max(branches) by ~4e-4.
+            vecs.append(V)
         print(f"  {min(i + BATCH, len(paths))}/{len(paths)}")
-    return np.concatenate(out)
+    scores = np.concatenate(out)
+    return (scores, np.concatenate(vecs), emb, probes) if keep_embeddings else scores
 
 
 def main(a):
@@ -222,16 +253,23 @@ def main(a):
     paths = find_images(root)
     if not paths:
         raise SystemExit(f"no images under {a.input_dir}")
-    preds = to_records(paths, score_all(paths))
-    if a.variants:
+    rich = a.branches or a.variants
+    got = score_all(paths, keep_embeddings=rich)
+    if rich:
         # Opt-in ONLY. The required deliverable is {image_path, pred} and nothing
         # else; self_check asserts that on the default path. `pred` is identical
         # either way -- a flag must not move the number it reports.
-        emb, probes = Embedder(), load_probes()
-        for rec, path in zip(preds, paths):
+        scores, V, emb, probes = got
+        preds = to_records(paths, scores)
+        for rec, path, v in zip(preds, paths, V):
             rec["verdict"] = verdict(rec["pred"])
-            rec["variants"] = score_variants(path, emb, probes)
-            print(f"  variants {rec['image_path']}")
+            if a.branches:
+                rec["branches"] = branch_scores(v, probes)
+            if a.variants:
+                rec["variants"] = score_variants(path, emb, probes, a.branches)
+                print(f"  variants {rec['image_path']}")
+    else:
+        preds = to_records(paths, got)
     Path(a.output).write_text(json.dumps(preds, indent=2))
     print(f"{len(preds)} predictions -> {a.output}")
 
@@ -326,6 +364,10 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--input-dir")
     p.add_argument("--output", default="preds.json")
+    p.add_argument("--branches", action="store_true",
+                   help="also emit each branch's score and a `verdict`. Branches "
+                        "are on the same scale as `pred`, so max(branches) == pred. "
+                        "Combine with --variants for per-variant branch scores.")
     p.add_argument("--variants", action="store_true",
                    help="also score all 15 degradation variants of each image, "
                         "generated in memory and never written to disk, and add "
