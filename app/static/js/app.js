@@ -83,6 +83,8 @@
   var confidenceRing = document.getElementById("confidence-ring");
   var explanation = document.getElementById("explanation");
   var metaChips = document.getElementById("meta-chips");
+  var regionsPanel = document.getElementById("regions-panel");
+  var regionList = document.getElementById("region-list");
   var signalList = document.getElementById("signal-list");
   var loadingCopy = document.getElementById("loading-copy");
 
@@ -326,8 +328,16 @@
     nextBtn.disabled = !many;
     document.getElementById("slideshow").classList.toggle("is-single", !many);
 
+    // Region coordinates use natural image pixels, so wait for this image
+    // before cropping. The current slide check prevents a stale load winning.
+    resultImage.onload = function () {
+      if (results[slideIndex] === item) renderRegions(data.regions);
+    };
     resultImage.src = item.objectUrl;
     resultImage.alt = data.filename || item.file.name;
+    regionList.innerHTML = "";
+    regionsPanel.classList.add("is-hidden");
+    if (resultImage.complete && resultImage.naturalWidth) renderRegions(data.regions);
     resultFilename.textContent = data.filename || item.file.name;
     slideCounter.textContent = slideIndex + 1 + " / " + results.length;
 
@@ -391,6 +401,90 @@
     span.className = "chip";
     span.textContent = text;
     metaChips.appendChild(span);
+  }
+
+  /**
+   * Render the API's region entries as exact crops of the uploaded image.
+   * Bboxes are validated and clipped to the natural image bounds so an
+   * unexpected backend value cannot break the result card.
+   */
+  function renderRegions(regions) {
+    regionList.innerHTML = "";
+    regionsPanel.classList.add("is-hidden");
+    if (!Array.isArray(regions) || !regions.length) return;
+    if (!resultImage.naturalWidth || !resultImage.naturalHeight) return;
+
+    regions.forEach(function (region) {
+      var crop = normaliseRegion(region && region.bbox);
+      if (!crop) return;
+
+      var canvas = document.createElement("canvas");
+      canvas.width = crop.width;
+      canvas.height = crop.height;
+      var context = canvas.getContext("2d");
+      context.drawImage(
+        resultImage,
+        crop.x,
+        crop.y,
+        crop.width,
+        crop.height,
+        0,
+        0,
+        crop.width,
+        crop.height
+      );
+
+      var li = document.createElement("li");
+      li.className = "region-card";
+      var image = document.createElement("img");
+      image.className = "region-crop";
+      image.src = canvas.toDataURL("image/png");
+      image.alt = (region.type || "Detected") + " region crop";
+
+      var details = document.createElement("div");
+      details.className = "region-details";
+      var title = document.createElement("strong");
+      title.textContent = region.type || "Detected region";
+      var summary = document.createElement("span");
+      var score = Number(region.score);
+      var scoreLabel = isNaN(score)
+        ? "Score unavailable"
+        : Math.round(Math.max(0, Math.min(1, score)) * 100) + "% AI";
+      summary.textContent =
+        scoreLabel +
+        " · " +
+        (VERDICT_LABELS[region.verdict] || region.verdict || "Uncertain");
+      details.appendChild(title);
+      details.appendChild(summary);
+      li.appendChild(image);
+      li.appendChild(details);
+      regionList.appendChild(li);
+    });
+
+    regionsPanel.classList.toggle("is-hidden", !regionList.children.length);
+  }
+
+  function normaliseRegion(bbox) {
+    if (!bbox) return null;
+    var x = Number(bbox.x);
+    var y = Number(bbox.y);
+    var width = Number(bbox.width);
+    var height = Number(bbox.height);
+    if (
+      !isFinite(x) ||
+      !isFinite(y) ||
+      !isFinite(width) ||
+      !isFinite(height) ||
+      width <= 0 ||
+      height <= 0
+    ) return null;
+
+    var left = Math.max(0, Math.floor(x));
+    var top = Math.max(0, Math.floor(y));
+    var right = Math.min(resultImage.naturalWidth, Math.ceil(x + width));
+    var bottom = Math.min(resultImage.naturalHeight, Math.ceil(y + height));
+    if (right <= left || bottom <= top) return null;
+    return { x: left, y: top, width: right - left, height: bottom - top };
   }
 
   /**
