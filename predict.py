@@ -151,6 +151,41 @@ def find_images(paths_root) -> list:
     return sorted(p for p in Path(paths_root).rglob("*") if p.suffix.lower() in EXTS)
 
 
+def verdict(pred) -> str:
+    """The word for a number, using the ONE threshold that means anything here.
+
+    0.5 on the emitted score IS OPERATING_POINT after the shift, so this is the
+    same comparison predict.py's callers should make and the same one every
+    metric in docs/ERROR_ANALYSIS.md is computed at.
+    """
+    return "AI" if pred >= 0.5 else "real"
+
+
+def score_variants(path, emb, probes) -> dict:
+    """Every degradation variant of one image, scored, nothing written to disk.
+
+    The image is normalised (JPEG q95) and the grid seeded off its image_id
+    exactly as quorum/embed.py does, so these numbers are comparable to
+    docs/robustness.md. That normalisation is why variants["clean"] can differ
+    slightly from the top-level `pred`, which scores the file AS GIVEN -- a
+    serving path should not silently re-encode what it was handed. On a JPEG the
+    gap is nil; on a PNG it is a few thousandths.
+    """
+    from quorum.degrade import apply, variant_specs
+    from quorum.embed import image_id, normalise
+
+    img = normalise(Image.open(path))
+    specs = variant_specs(image_id(img), None)          # None = the full 15
+    imgs = [img] + [apply(img, kind, param, rng) for _, kind, param, rng in specs]
+    names = ["clean"] + [nm for nm, *_ in specs]
+    out = {}
+    for i in range(0, len(imgs), BATCH):
+        for nm, v in zip(names[i:i + BATCH],
+                         score_embeddings(emb.embed_batch(imgs[i:i + BATCH]), probes)):
+            out[nm] = {"pred": round(float(v), 4), "verdict": verdict(v)}
+    return out
+
+
 def to_records(paths, scores) -> list:
     """THE required output shape: two fields, posix paths, 4dp. Nothing else.
 
@@ -189,6 +224,15 @@ def main(a):
     if not paths:
         raise SystemExit(f"no images under {a.input_dir}")
     preds = to_records(paths, score_all(paths))
+    if a.variants:
+        # Opt-in ONLY. The required deliverable is {image_path, pred} and nothing
+        # else; self_check asserts that on the default path. `pred` is identical
+        # either way -- a flag must not move the number it reports.
+        emb, probes = Embedder(), load_probes()
+        for rec, path in zip(preds, paths):
+            rec["verdict"] = verdict(rec["pred"])
+            rec["variants"] = score_variants(path, emb, probes)
+            print(f"  variants {rec['image_path']}")
     Path(a.output).write_text(json.dumps(preds, indent=2))
     print(f"{len(preds)} predictions -> {a.output}")
 
@@ -283,6 +327,11 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--input-dir")
     p.add_argument("--output", default="preds.json")
+    p.add_argument("--variants", action="store_true",
+                   help="also score all 15 degradation variants of each image, "
+                        "generated in memory and never written to disk, and add "
+                        "a `verdict` field. NOT the required output schema -- the "
+                        "default stays {image_path, pred}.")
     p.add_argument("--self-check", action="store_true",
                    help="contract + scoring checks, no cache and no GPU")
     a = p.parse_args()

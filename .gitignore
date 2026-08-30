@@ -7,3 +7,4 @@ __pycache__/
 docs/RUNBOOK.md
 test-images/variants/
 data/models/backup_*/
+preds.json
