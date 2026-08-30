@@ -35,7 +35,7 @@ body {
 }
 
 body {
-  font-family: "Source Sans 3", system-ui, sans-serif;
+  font-family: "Inter", sans-serif;
   color: var(--ink);
   background: var(--cream);
   line-height: 1.5;
@@ -46,7 +46,7 @@ h2,
 h3,
 .brand-name,
 .verdict-label {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: "Inter", sans-serif;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -110,6 +110,7 @@ h3,
 .brand-name {
   margin: 0;
   font-size: 1.2rem;
+  font-weight: 510;
 }
 
 .brand-tag {
@@ -135,7 +136,7 @@ h3,
 .shell {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 12px 24px 72px;
+  padding: 0px 24px 72px;
 }
 
 .stage {
@@ -185,7 +186,7 @@ h1 {
 }
 
 .dropzone {
-  border: 1.5px dashed rgba(61, 43, 31, 0.28);
+  border: 1px solid rgba(61, 43, 31, 0.28);
   border-radius: 18px;
   background: linear-gradient(180deg, #fffdf9, var(--cream-deep));
   min-height: 220px;
@@ -790,4 +791,10 @@ h1 {
     grid-column: 1 / -1;
     order: 3;
   }
+}
+
+.confidence-highlight {
+    color: #D56A2B;
+    font-size: 1.10em;
+    font-weight: 800;
 }
