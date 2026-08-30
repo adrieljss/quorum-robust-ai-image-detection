@@ -128,6 +128,48 @@ generators are much harder, the effect is large where it appears (3-4x the FNR),
 and it is not a fixed property of the generator -- more training breadth moved
 one of the three across the line entirely. Reproduce: `scratchpad/errors.py`.
 
+### 3.0 Being trained on a generator is worth ~0.017. Which generator it is swings 0.17
+
+Section 3 reports only UNSEEN generators, which invites the reading that the
+spread is about generalisation. It is not. `calib_ood`'s five families became
+training data in 3.1, so they can be scored as an in-distribution baseline
+against the same negative pool (`test_ood` reals, so only the positives differ):
+
+| generator | status | n | AUROC | recall |
+|---|---|---|---|---|
+| Ideogram3 | **trained on** | 249 | 0.9654 | 89.2% |
+| Recraftv3 | **trained on** | 289 | 0.9572 | 85.8% |
+| FLUX_2 | **trained on** | 126 | 0.9424 | 77.0% |
+| Flux.1_pro | **trained on** | 279 | 0.9120 | 72.8% |
+| Ideogram2 | **trained on** | 125 | 0.8920 | 64.8% |
+| Hidream | unseen | 301 | **0.9712** | 89.4% |
+| GPT4o | unseen | 290 | 0.9678 | 87.9% |
+| Imagen4 | unseen | 280 | 0.9603 | 86.4% |
+| nano_banana | unseen | 136 | 0.9571 | 88.2% |
+| seedream4.5 | unseen | 101 | 0.9551 | 85.1% |
+| Seedream3.0 | unseen | 280 | 0.9442 | 78.6% |
+| imagen3 | unseen | 227 | 0.9209 | 76.7% |
+| nano_banana_2 | unseen | 85 | 0.8502 | 49.4% |
+| GPT-image-1.5 | unseen | 279 | 0.8421 | 50.2% |
+| GPT-image-2 | unseen | 123 | **0.8006** | 38.2% |
+
+```
+mean AUROC   trained-on 0.9338   unseen 0.9169   gap 0.017
+mean recall  trained-on 77.9%    unseen 73.0%
+```
+
+**The best unseen generator beats every trained-on one**, and Ideogram2 -- which
+is in our training set -- ranks 8th of 15, below seven generators we have never
+seen. Training on a generator is worth about **+0.017**; the choice of generator
+is worth **0.17**, ten times more.
+
+So the failures in section 3 are mostly *hardness*, not *unfamiliarity*. That
+matters for planning: adding a hard generator to training should be expected to
+buy ~0.02 on that generator, not to fix it. Ideogram2 is the counter-example
+sitting inside our own training set. Reproduce: the block in this section's
+commit message, or re-derive with `predict.score_embeddings` grouped by
+`R.generator` against `test_ood` reals.
+
 ### 3.1 It is a distribution problem, not a backbone problem
 
 Two hypotheses fit the table above. Either a frozen 2023 CLIP does not
@@ -829,6 +871,12 @@ Reproduce: `scratchpad/patch_build.py`, `patch_eval.py`.
   nothing trains on -- see 7.7. It cost us the flattering number: FPR there is
   **19.50%**, against 2.32% on COCO. Reproduce: `scratchpad/contam.py`,
   `contam2.py`.
+- **We cannot say which generators our main training corpus contains.** SID_Set
+  labels every AI image `generator = unknown` -- all 8,000 in `sid_train` and all
+  1,996 in `sid_calib`. "2024-era generators" is an inference from the dataset's
+  publication date, not a fact we can check, and every statement in this document
+  about generator recency rests on the 15 families that ARE labelled, in
+  So-Fake-OOD and WildFake.
 - **We have now SEEN the tampered class, for the first time in the project.**
   40 images streamed 31 Aug to `data/raw/images/sid_tampered_peek/`. `tampered`
   is confirmed as *a real photograph with a region replaced or inserted by a
