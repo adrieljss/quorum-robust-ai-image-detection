@@ -772,8 +772,103 @@ a decision rather than a default.
 | 10 | Per-generator specialist zoo | Five one-generator probes combined by `max()`: **0.9042** against one pooled probe's **0.9444** on identical rows. Loses by 0.040, and loses *most* on GPT-image-2 (0.763 vs 0.848) — the generator specialists were supposed to help |
 | 11 | Nonlinear head (MLP-64) on the pooled data | 0.9425 against linear's 0.9444, with double the COCO false positives. Tests the same premise as #10 from the other side: one linear boundary is **not** the bottleneck, data breadth is |
 | 12 | A second foreign dataset (Midjourney, 1,500 imgs) | +0.0307 on the organizer set, **−0.0013** on So-Fake-OOD. Content matching, not artifact learning — §3.2 |
-| 14 | Hard-negative mining on COCO train2017 | Score the 5,000 COCO negatives, oversample the top slice 5-15x. At matched FPR it cuts COCO false positives **60%** (2.32% -> 0.94%) and the corpus-disjoint laion pool **5%** (19.50% -> 18.50%), for 6-15pp of SID tampered recall. Learned "these COCO watermarks are real", not "watermarks are real" |
 | 13 | Per-content-bucket thresholds | Two objectives, both fail. Accuracy-optimal per bucket: FNR 30.69% against a global cut's 30.26% at matched FPR. Equal-FPR per bucket: **34.97%**, worse by 4.7pp. See below |
+| 14 | Hard-negative mining on COCO train2017 | Score the 5,000 COCO negatives, oversample the top slice 5-15x. At matched FPR it cuts COCO false positives **60%** (2.32% -> 0.94%) and the corpus-disjoint laion pool **5%** (19.50% -> 18.50%), for 6-15pp of SID tampered recall. Learned "these COCO watermarks are real", not "watermarks are real" |
+| 15 | **2026-generator training data** (GPT-image-2 + nano-banana-pro, 9,784 rows) | Overall **−0.0102**, laion holdout FPR **18.05% → 25.15%**, imagen3 −0.0316. Fails every gate criterion, and gets *worse* with more data. See §8.15 |
+| 16 | A separate **modern-general branch** in `max()` instead of pooling | **−0.0211** overall, laion FPR 18.05% → **28.30%**, and every generator regresses including GPT-image-2 (−0.0235). Twice as bad as pooling the same data. See §8.15 |
+
+**§8.15 is the one that was supposed to work, and the dose-response is why it
+did not.**
+
+Section 3 says our worst failures are recent generators -- GPT-image-2 at 73.9%
+FNR. Two datasets published within the last month contain exactly those
+generators: `Goku-OpenLab/gpt-image-2-prompts-datasets` (28,627 images) and
+`nano-banana-pro-prompts-datasets` (35,413). Both were pulled, filtered to the
+photographic CLIP buckets (the creative majority is not where we fail), embedded
+on the full 15-variant grid so their density matched `sid_train`, and folded into
+the same 5-fold recipe.
+
+| training addition | rows | So-Fake-OOD clean | GPT-image-2 | laion FPR |
+|---|---|---|---|---|
+| none (shipped) | — | 0.9265 | 0.8006 | 18.05% |
+| + GPT-image-2 | 2,684 | 0.9256 (−0.0010) | **0.8175** (+0.0169) | 23.25% |
+| + both | 9,784 | **0.9163** (−0.0102) | 0.8020 (+0.0015) | **25.15%** |
+
+**It gets worse with more data, and the thing it was meant to fix gets worse
+too.** GPT-image-2's own gain collapses from +0.0169 to +0.0015 once
+nano-banana is added. Nine of ten generators regress in the full run.
+
+The false-positive column is the clearest signal: **18.05% → 25.15% on the
+corpus-disjoint holdout**, at a matched anchor budget. The probe learned
+something from these images that also fires on real web photographs. That is the
+same shape as §7.7 -- prompt-driven "photographic" AI and real web imagery
+apparently share surface statistics that our filter could not separate.
+
+**The single-dataset row is a precise confirmation of §3.0.** That section
+measured, before this experiment ran, that being trained on a generator is worth
+**~+0.017**. Training on GPT-image-2 gave **+0.0169** on GPT-image-2. The
+prediction recorded in `scratchpad/modern_gen.py` before any result was seen --
+"~+0.02 on GPT-image-2, under +0.01 overall, 20% odds of a meaningful gain" --
+was correct on both counts.
+
+**A methodological warning worth more than the result.** The first run reported
++0.042 on GPT-image-2 and 0.9255 → 0.9418 overall, which looked like a decisive
+win. It was an artifact: it compared `predict.score_embeddings` (the 3-branch
+max) against the new general branch ALONE, conflating the training change with
+removing two branches. The tell was the edited-photo task reading −0.43, which is
+simply what general-alone scores there. Corrected, the same weights give −0.0010.
+**Any A/B on a branch must slot the new weights into the SAME combination as the
+shipped scorer**, or it measures the architecture instead of the change.
+
+**Giving the data its own branch is twice as bad.** The obvious response to
+"pooling hurt" is that one linear boundary cannot serve two populations, so give
+the new data its own probe and `max()` them. Measured: **−0.0211** overall
+against pooling's −0.0102, laion false positives **18.05% → 28.30%**, and every
+single generator regresses -- including GPT-image-2 at −0.0235, the one it exists
+to fix.
+
+The mechanism is worth more than the number. **`max()` can only ever RAISE a
+score.** A branch with poor precision therefore contributes false positives that
+nothing can overrule, which is exactly the +10.25pp on real web photographs.
+Pooling at least lets the fit trade the two populations off against each other;
+`max()` has no such mechanism. So when data hurts in a pool, separating it makes
+things worse, not better -- the intuition runs backwards here.
+
+That is the **sixth** branch to lose in `max()`: spectral (§8.7), per-generator
+specialists (§8.10), an MLP head (§8.11), face-tampered, general-noise, and this.
+All six share the 768-d embedding. The only branch that ever won a place, `face`
+(§7.8), brought a different 769-d feature. The rule has not once been violated.
+
+**The cost is not only the AUROC -- it is that you SPEND AN UNSEEN GENERATOR.**
+Section 3's per-generator table is the strongest evidence in this document, and
+its force comes entirely from those ten generators being ones the model has never
+met. Training on 671 GPT-image-2 images would move GPT-image-2 (and probably
+nano_banana_2) from *unseen* to *trained-on*, so "GPT-image-2: 73.9% FNR" would
+stop meaning what it means today, section 3.0's 5-vs-10 contrast would become a
+muddled ~7-vs-~8, and the unseen-generator claim that distinguishes this
+evaluation from a single-benchmark number would weaken.
+
+That should have been a gate criterion rather than a footnote: buying +0.02 on
+one generator by spending the table that carries section 3 is a bad trade even
+when the numbers pass. They did not, so the question stayed hypothetical -- but
+anyone revisiting this idea inherits the same trade.
+
+Related unknown: whether `nano-banana-pro` is the same model as So-Fake-OOD's
+`nano_banana_2` or a sibling. Neither source documents generator identity, and
+SID_Set labels none at all (section 9), so "we trained on that generator" would
+itself have been a guess.
+
+**The counterfactual is drawn, not described:** `docs/figures-modern-dataset/`
+holds all six figures built with this candidate, via
+`make_figures.py --general <probe> --out figures-modern-dataset`. At the
+operating point it is worse on nearly everything -- accuracy 0.8380 -> 0.8235,
+recall 0.7588 -> 0.7260, **FNR 24.12% -> 27.40%**, F1 0.8243 -> 0.8046, laion
+false positives 18.05% -> 24.95%. FNR rising is the sharpest verdict available:
+that is the single metric the experiment existed to reduce.
+
+Not installed. Candidates kept at `scratchpad/general_modern.npz`,
+`general_modern2.npz` and `modern_branch.npz`. Reproduce:
+`scratchpad/modern_gen.py`, `modern_gen2.py`, `modern_branch.py`.
 
 **§8.14 closes a loop that §7.5, §7.6 and §7.7 all opened, and it is the most
 useful negative result in this document.** Three independent attacks on the

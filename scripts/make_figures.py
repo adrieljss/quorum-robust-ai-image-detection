@@ -60,6 +60,11 @@ BRANCHES = ("general", "tampered", "face")
 SCORE_LABEL = "max(general, tampered, face)"
 SHIP_LABEL = "max(general, tampered, face)  — shipped"
 NO_TAMPERED = False
+# Set by --general to score with a candidate general probe instead of the shipped
+# one, so a proposed model can be SEEN rather than described. Everything else --
+# tampered, face, the threshold rule -- stays identical, which is the only way
+# the comparison isolates the candidate.
+GENERAL_OVERRIDE = None
 # Shared with quorum/calibrate.py's reliability plot so the figure set reads as
 # one document rather than four unrelated charts.
 BLUE, RED, GREY = "#2B4A9B", "#B4462F", "#9AA3AF"
@@ -147,7 +152,9 @@ def probe(name, X):
     ships: max() is not invariant to rescaling one of its arguments, so the
     general/tampered balance drawn here would not be the balance deployed.
     """
-    z = np.load(MODELS / f"{name}.npz")
+    src = (GENERAL_OVERRIDE if (name == "general" and GENERAL_OVERRIDE)
+           else MODELS / f"{name}.npz")
+    z = np.load(src)
     a = TAMPERED_SCALE if name == "tampered" else 1.0
     return 1 / (1 + np.exp(-a * (X @ z["w"].ravel() + float(z["b"].ravel()[0]))))
 
@@ -599,6 +606,22 @@ FIGS = {"threshold": fig_threshold, "separation": fig_separation,
         "generalisation": fig_generalisation, "benchmarks": fig_benchmarks}
 
 if __name__ == "__main__":
+    argv = sys.argv[1:]
+    if "--general" in argv:
+        i = argv.index("--general")
+        GENERAL_OVERRIDE = Path(argv[i + 1])
+        assert GENERAL_OVERRIDE.exists(), f"no such probe: {GENERAL_OVERRIDE}"
+        j = argv.index("--out")
+        FIGURES = ROOT / "docs" / argv[j + 1]
+        SCORE_LABEL = "max(general*, tampered, face)"
+        # NOT "shipped". A counterfactual figure set that labels itself shipped is
+        # worse than no figure set: someone will quote it as the deliverable.
+        SHIP_LABEL = "max(general*, tampered, face)  — CANDIDATE"
+        print(f"  general probe := {GENERAL_OVERRIDE}")
+        print(f"  output        := {FIGURES}")
+        argv = [a for k, a in enumerate(argv)
+                if k not in (i, i + 1, j, j + 1)]
+        sys.argv = [sys.argv[0]] + argv
     if "--no-tampered" in sys.argv[1:]:
         NO_TAMPERED = True
         BRANCHES = ("general",)

@@ -8,3 +8,6 @@ docs/RUNBOOK.md
 test-images/variants/
 data/models/backup_*/
 preds.json
+data/manifests/rows_modern_*.csv
+data/raw/modern_*/
+data/raw/probe_*/

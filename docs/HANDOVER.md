@@ -1011,6 +1011,18 @@ It is the ready-made evidence for **deliverable #5, the Error Analysis Note**:
 six figures showing exactly what dropping the branch would cost. Keep it in the
 repo; do not treat it as a proposal.
 
+### `figures-modern-dataset/` — the same trick, generalised
+
+`make_figures.py --general <probe.npz> --out <dir>` swaps the general branch for
+any candidate and rebuilds all six figures. `docs/figures-modern-dataset/` is the
+2026-generator candidate from `ERROR_ANALYSIS.md` §8.15: accuracy 0.8380 →
+0.8235, recall 0.7588 → 0.7260, **FNR 24.12% → 27.40%**, laion false positives
+18.05% → 24.95%. FNR rising is the verdict — it is the one metric that
+experiment existed to reduce.
+
+Its rows read **CANDIDATE**, not "shipped". A counterfactual figure set that
+labels itself shipped will eventually be quoted as the deliverable.
+
 ### Also checked, since general would have stood alone
 
 The ridge-vs-logistic comparison in §4c was made when `max` was the scorer.

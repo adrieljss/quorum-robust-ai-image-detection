@@ -306,6 +306,12 @@ not the training.
 - [x] `make_figures.py --no-tampered` -> `docs/figures-no-tampered/`, the
       general-probe-alone counterfactual, threshold re-picked (0.640, not
       0.766). Evidence for Stage 5; **not** a proposal — see the decision below
+- [x] `make_figures.py --general PATH --out DIR` -> `docs/figures-modern-dataset/`,
+      the 2026-generator counterfactual from `ERROR_ANALYSIS.md` §8.15. Same
+      generalisation of the `--no-tampered` idea: any candidate probe can be
+      *seen* rather than described. Its rows are labelled **CANDIDATE**, not
+      "shipped" -- a counterfactual figure set that calls itself shipped will
+      eventually be quoted as the deliverable
 - [x] Two figure captions asserted numbers instead of computing them (`0.9170`
       as the headline claim, "a quarter of ordinary photographs"). Both now
       derive from the data, so they cannot outlive the result
@@ -366,7 +372,7 @@ Feeds Innovation & Problem Insight at 20%. Not an afterthought.
 - [x] **Write the Error Analysis Note itself** -- `docs/ERROR_ANALYSIS.md`,
       30 Aug. Nine sections: the scorecard, failure by transformation, by
       generator, by content bucket, both sets of case studies, four measured
-      trade-offs, the nine negative results, and its own limitations
+      trade-offs, the sixteen negative results, and its own limitations
 - [x] **The blind spot is FIXABLE and we chose not to spend it** -- adding
       calib_ood's five unseen generator families to sid_train lifts the four
       worst generators **+0.0559** (seedream4.5 +0.0854, nano_banana_2 +0.0620)
@@ -392,6 +398,27 @@ Feeds Innovation & Problem Insight at 20%. Not an afterthought.
       `ERROR_ANALYSIS.md` §7.4
 
 ---
+
+### Cache warning, 31 Aug — modern_* sources are NOT training data
+
+- [ ] `data/cache/embeddings/vitl14_v1/modern_gptimage2_*` and
+      `modern_nanobanana_*` exist (~12k images, full 15-variant grid) from the
+      experiment in `ERROR_ANALYSIS.md` §8.15, which FAILED its gate: overall
+      −0.0102 and laion holdout false positives 18.05% → 25.15%. They are
+      embedded with `--assign-split train`, so `build_manifest.py` WILL file them
+      as training rows. Nothing trains on them today because `train_general_plus`
+      takes explicit `--also` sources -- but do not add them, and consider
+      deleting the shards once the finding is written up elsewhere
+- [ ] `data/raw/modern_*` and the `_dl` staging dirs are ~2GB of images that are
+      not referenced by anything. Safe to delete
+- [x] Negative result **#16** recorded: giving that data its own branch in
+      `max()` is *twice* as bad as pooling it (−0.0211, laion FPR 18.05% →
+      28.30%). Sixth branch to lose in `max()`, sixth sharing the 768-d
+      features -- only `face`, at 769-d, ever won a place. `ERROR_ANALYSIS.md` §8.15
+- [x] Recorded with it: pooling would also have **spent an unseen generator**.
+      §3's per-generator table gets its force from those ten generators being
+      unseen; training on GPT-image-2 retires that. Should have been a gate
+      criterion, not a footnote
 
 ### Open, found 31 Aug — the figures and threshold script are FACE-BLIND
 
