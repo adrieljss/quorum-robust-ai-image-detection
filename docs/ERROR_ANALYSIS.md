@@ -751,10 +751,10 @@ cached 768-d embeddings cannot reproduce the shipped score; `make_figures.py`
 now joins the `face_*` caches, but `pick_threshold.py` still cannot and says so.
 Reproduce: `scratchpad/face_max.py`, `face_grid.py`.
 
-**Why the branch scores ONE face and not `max(face1, face2, ...)`.** The
-disjunctive argument that makes the scorer a `max()` applies inside the face
-branch too: if any face in the image is synthetic, the image is AI-touched. It
-is not shipped, and the reason is measured rather than assumed.
+**The branch scores EVERY face and takes the max** (shipped 31 Aug), which is
+the disjunctive argument that makes the whole scorer a `max()` applied one level
+down: if any face in the image is synthetic, the image is AI-touched. It was
+priced before it was wired, and the price is roughly zero in both directions.
 
 `max()` over N draws rises with N even when every draw is from the same
 distribution, so a real group photo gets more chances to produce one high score
@@ -786,10 +786,21 @@ concentrates in small faces (+0.047 vs +0.009), and that gain is anti-correlated
 with clean AUC across 14 generators (r = −0.685, p = 0.007). A 40px face
 upscaled to 224 teaches "blurry ⇒ fake", which is why the floor exists.
 
-So this is **untested, not rejected** — the distinction matters against §8's six
-branches, which all failed a gate. The benefit cannot be priced today because
-nothing on disk is a multi-face image with one manipulated face; a face-swap set
-with bystanders would settle it. Reproduce: `scratchpad/multiface.py`.
+**So it ships as a cheap option on a case we cannot yet measure.** The cost is
+measured and ~0; the benefit is *unmeasurable today*, because nothing on disk is
+a multi-face image with one manipulated face — a face-swap set with bystanders in
+frame would settle it. It is the one change in this document that went in without
+a measured gain, and it went in because the measured cost was zero and the
+failure mode it covers (a swapped face beside real ones) is real even though our
+corpora do not contain it.
+
+**Two honest consequences, neither re-measured.** `face.npz` was TRAINED on
+largest-face-only crops and every cached `face_*` row holds one face per image,
+so on a multi-face image the shipped score can now exceed what §1's table, the
+figures and `docs/robustness.md` report. Those numbers were not re-run — the
+eval caches are single-face, so they would be unchanged for all but multi-face
+rows, and the deadline came first. On `test-images/` the change moved **0 of 16**
+scores. Reproduce: `scratchpad/multiface.py`.
 
 ---
 

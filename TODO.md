@@ -420,9 +420,18 @@ Feeds Innovation & Problem Insight at 20%. Not an afterthought.
       unseen; training on GPT-image-2 retires that. Should have been a gate
       criterion, not a footnote
 
-### Open, asked 31 Aug — should the face branch be max over ALL faces?
+### Face branch — max over ALL faces, SHIPPED 31 Aug
 
-- [ ] **Measured, and the answer is "it would barely fire".** `face_crop()` scores
+- [x] `quorum/features.face_crops()` returns every face >= `MIN_FACE`, largest
+      first, capped at `MAX_FACES = 8`; `face_crop()` is now a one-line slice of
+      it, so there is one detect-and-align implementation rather than two.
+      `predict.face_score()` scores them all and reduces with `np.maximum.at`
+- [ ] **NOT re-measured, deliberately, and this is the debt.** `face.npz` was
+      trained on largest-face-only crops and every cached `face_*` row is
+      single-face, so on a multi-face image the shipped score can exceed what §1,
+      the six figures and `robustness.md` report. Re-run the grid before the
+      README quotes any of those numbers as the shipped scorer's
+- [x] Priced first: **"it would barely fire".** `face_crop()` scores
       the single largest face. Scoring every face and taking the max is the same
       disjunctive argument as the branch-level `max()`, and the multiplicity bias
       it introduces turns out to cross no threshold (FPR +0.00% on both real

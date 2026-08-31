@@ -126,7 +126,8 @@ box("sig", f"<b>p = &#963;(z &#8722; {shift:.4f})</b><br>puts the operating<br>"
            f"point {op} at 0.5",
     1350, 130, 210, 90, BOX + ORANGE, parent=S)
 
-box("facedet", "<b>face_crop()</b><br>detect + crop<br>the largest face",
+box("facedet", "<b>face_crops()</b><br>detect + align<br>"
+               "<b>every</b> face &#8805; 64px<br>(capped at 8)",
     260, 430, 230, 85, BOX + GREY, parent=S)
 box("faceemb", "<b>the same frozen CLIP</b>, on the crop<br>"
                "&#8853; standardised log&#8322;(face_px)",
@@ -134,8 +135,9 @@ box("faceemb", "<b>the same frozen CLIP</b>, on the crop<br>"
 box("faceprobe", f"<b>face probe</b> &#183; <b>769-d</b><br>z<sub>f</sub> = w&#183;f + b"
                  f"<br>{f_n:,} numbers &#183; {f_kb:.1f} KB",
     850, 430, 220, 85, parent=S)
-box("facesig", f"<b>p<sub>face</sub> = &#963;(z<sub>f</sub> &#8722; {shift:.4f})</b><br>"
-               "<b>0.0</b> if no face found",
+box("facesig", f"<b>p<sub>face</sub> = max<sub>i</sub> &#963;(z<sub>f,i</sub> "
+               f"&#8722; {shift:.4f})</b><br>over every face<br>"
+               "<b>0.0</b> if none found",
     1130, 435, 200, 75, BOX + ORANGE, parent=S)
 
 box("pred", "<b>pred = max(p, p<sub>face</sub>)</b>", 1350, 290, 210, 60,

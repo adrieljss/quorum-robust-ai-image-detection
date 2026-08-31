@@ -43,12 +43,21 @@ def _detector(w, h):
     return d
 
 
-def face_crop(img: Image.Image):
-    """(aligned 224x224 PIL, box_px) or (None, 0.0).
+MAX_FACES = 8    # see face_crops: a cap on cost AND on the multiplicity bias
+
+
+def face_crops(img: Image.Image, limit: int = MAX_FACES):
+    """[(aligned 224x224 PIL, box_px)] for every face >= MIN_FACE, largest first.
 
     Alignment is the whole point: landmarks warp every face into one coordinate
     frame, so 'is this eye consistent with that eye' becomes a fixed-position
     comparison instead of a vision problem.
+
+    `limit` caps two things at once. The obvious one is cost -- a crowd photo
+    should not turn into fifty CLIP forwards. The other is that the shipped
+    scorer takes a max over these, and max over N draws rises with N even when
+    every draw is from the same distribution, so an uncapped list would let a
+    stadium crowd out-score a portrait for no reason but its size.
     """
     import cv2
     bgr = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
@@ -59,23 +68,45 @@ def face_crop(img: Image.Image):
     small = cv2.resize(bgr, (int(w * k), int(h * k))) if k < 1.0 else bgr
     _, faces = _detector(small.shape[1], small.shape[0]).detect(small)
     if faces is None or not len(faces):
-        return None, 0.0
-    f = max(faces, key=lambda r: r[2] * r[3]) / k     # back to native coords
-    if min(f[2], f[3]) < MIN_FACE:
-        return None, 0.0
-    # YuNet names its landmarks from the subject's point of view ("right eye"),
-    # but emits them image-left first -- verified 13/13 on COCO. That already
-    # matches the template, so do NOT swap rows (PIPELINE 5.2 says otherwise
-    # and is wrong for cv2 5.x; swapping mirrors every face).
-    lm = f[4:14].reshape(5, 2).astype(np.float32)
-    M = _umeyama(lm, CANONICAL_5)   # LMEDS/RANSAC fit a subset of 5 points; this
-                                    # is least squares over all of them
+        return []
+    out = []
+    for f in sorted(faces, key=lambda r: -r[2] * r[3]):
+        f = f / k                                     # back to native coords
+        if min(f[2], f[3]) < MIN_FACE:
+            break                                     # sorted, so the rest are smaller
+        # YuNet names its landmarks from the subject's point of view ("right
+        # eye"), but emits them image-left first -- verified 13/13 on COCO. That
+        # already matches the template, so do NOT swap rows (PIPELINE 5.2 says
+        # otherwise and is wrong for cv2 5.x; swapping mirrors every face).
+        lm = f[4:14].reshape(5, 2).astype(np.float32)
+        M = _umeyama(lm, CANONICAL_5)   # LMEDS/RANSAC fit a subset of 5 points;
+                                        # this is least squares over all of them
+        crop = cv2.warpAffine(bgr, M, (224, 224), flags=cv2.INTER_LINEAR)
+        # Box size travels with the crop: a 64px face upscaled to 224 carries far
+        # harsher effective degradation than a 181px one downscaled to it
+        # (measured 2.8x spread on COCO). Without this the probe cannot tell
+        # them apart.
+        out.append((Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)),
+                    float(min(f[2], f[3]))))
+        if len(out) >= limit:
+            break
+    return out
 
-    out = cv2.warpAffine(bgr, M, (224, 224), flags=cv2.INTER_LINEAR)
-    # Box size travels with the crop: a 64px face upscaled to 224 carries far
-    # harsher effective degradation than a 181px one downscaled to it (measured
-    # 2.8x spread on COCO). Without this the probe cannot tell them apart.
-    return Image.fromarray(cv2.cvtColor(out, cv2.COLOR_BGR2RGB)), float(min(f[2], f[3]))
+
+def face_crop(img: Image.Image):
+    """(aligned 224x224 PIL, box_px) or (None, 0.0) -- the LARGEST face only.
+
+    What face.npz was TRAINED on, and what the cached face_* embeddings hold,
+    so the training pipeline must keep calling this. The shipped scorer uses
+    face_crops() and maxes over all of them; docs/ERROR_ANALYSIS.md 7.8 has the
+    measurement behind that split.
+
+    One implementation, not two: this is a slice of face_crops(), because a
+    second copy of the detect-and-align path is exactly the drift that has bitten
+    the scoring path five times in this repo.
+    """
+    fs = face_crops(img, limit=1)
+    return fs[0] if fs else (None, 0.0)
 
 
 FFT_N = 512      # fixed window, NATIVE resolution -- see spectral_features
@@ -175,4 +206,22 @@ if __name__ == "__main__":
 
     c, px = face_crop(noise)
     assert c is None and px == 0.0, "detected a face in pure noise"
+    assert face_crops(noise) == [], "face_crops disagrees with face_crop on noise"
+
+    # face_crop() must stay exactly "the largest face", because face.npz was fit
+    # on it and every cached face_* row came from it. This is the assertion that
+    # catches the refactor above going wrong.
+    real = ROOT / "test-images" / "real" / "real1.png"
+    if real.exists():
+        img = Image.open(real).convert("RGB")
+        fs = face_crops(img)
+        one = face_crop(img)
+        if fs:
+            assert one[1] == fs[0][1], f"face_crop {one[1]} != largest of {[f[1] for f in fs]}"
+            assert list(np.diff([f[1] for f in fs])) <= [0] * (len(fs) - 1) or len(fs) == 1,                 "face_crops must be sorted largest-first"
+            assert all(f[1] >= MIN_FACE for f in fs), "a face under the floor got through"
+            assert len(fs) <= MAX_FACES
+        else:
+            assert one[0] is None, "face_crop found a face face_crops did not"
+        print(f"  face_crop == largest of face_crops ({len(fs)} face(s) in real1.png)")
     print(f"features.py ok: spectral {a.round(3).tolist()}, no false face")

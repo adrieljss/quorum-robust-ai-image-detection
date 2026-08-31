@@ -159,9 +159,21 @@ def face_score(imgs, emb, face_model) -> np.ndarray:
     feeds a LEARNED combiner with a face_present indicator beside it, which makes
     the fill arbitrary there and not here.)
 
+    EVERY face is scored and the image takes the max, not just the largest face:
+    if any face in a frame is synthetic, the frame is AI-touched, which is the
+    same disjunctive argument that makes the whole scorer a max(). Capped at
+    features.MAX_FACES, because max over N draws rises with N.
+
+    Note this differs from what face.npz was TRAINED on and from what the cached
+    face_* rows hold, both of which are largest-face-only -- so on a multi-face
+    image the shipped score can exceed what the figures and docs/robustness.md
+    measure. Measured cost of the difference on 4,000 real images: FPR +0.00%,
+    mean score +0.005, and 67% of COCO faces are under the 64px floor anyway.
+    docs/ERROR_ANALYSIS.md 7.8.
+
     Crops go through in ONE batch. Detection is the cost, not the embedding.
     """
-    from quorum.features import face_crop
+    from quorum.features import face_crops
 
     out = np.zeros(len(imgs), np.float32)
     if face_model is None:
@@ -169,14 +181,16 @@ def face_score(imgs, emb, face_model) -> np.ndarray:
     w, b, mu, sd = face_model
     crops, idx, px = [], [], []
     for i, im in enumerate(imgs):
-        c, p = face_crop(im)
-        if c is not None:
+        for c, p in face_crops(im):
             crops.append(c); idx.append(i); px.append(max(p, 1.0))
     if not crops:
         return out
     V = emb.embed_batch(crops)
     feat = np.column_stack([V, (np.log2(np.asarray(px)) - mu) / sd])
-    out[idx] = 1 / (1 + np.exp(-(feat @ w + b - SHIFT)))
+    s = 1 / (1 + np.exp(-(feat @ w + b - SHIFT)))
+    # maximum.at, not out[idx] = s: idx repeats for a multi-face image and plain
+    # assignment would keep whichever face happened to be scored LAST.
+    np.maximum.at(out, idx, s)
     return out
 
 
