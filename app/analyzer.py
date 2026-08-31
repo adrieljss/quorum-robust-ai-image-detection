@@ -32,23 +32,27 @@ Notes worth keeping in mind:
     would need that measurement to change first, not just a code change.
     Falls back to None if spectral.npz is absent, same as every other
     optional branch.
-  - regions: face gets at most one entry (largest detected face, matching
-    how face.npz was trained on one face per image, not an ensemble), always
-    with a real score/verdict. text gets up to MAX_TEXT_REGIONS entries
-    (RapidOCR locations, most-confident first) with score/verdict always
-    null -- OCR finds WHERE text is but nothing scores whether it is
-    AI-generated, so there is nothing honest to put in those fields. This is
-    a deliberate exception to "every region has a score": the request was to
-    surface detected text without it implying or affecting a verdict.
-    tampered does not get a region entry at all: it scores the whole image
-    (same CLIP embedding as general, a different linear probe on top), not a
-    specific crop, so there is no box to draw for it.
-  - _face_bbox() re-runs face detection instead of editing
-    quorum/features.py to have face_crop() return the box it already
-    computes internally. That file is shared with the training pipeline, so
-    re-detecting locally (a few extra ms) keeps it untouched. bbox is in
-    pixel coords of the image as uploaded -- normalise() only re-encodes
-    the JPEG, it does not resize.
+  - regions: face gets one entry per detected face at or above MIN_FACE
+    (quorum/features.py:face_crop_all(), largest first), each with a real
+    score/verdict from the same single-face probe (face.npz was trained on
+    one face per image, not an ensemble -- this runs that one probe over
+    every face found, it does not change what the probe itself learned).
+    signals.face and the face contribution to confidence are both the WORST
+    (max P(AI)) of those per-face scores, so one AI face in a group photo is
+    enough to flag it -- see the module docstring's confidence note below.
+    text gets up to MAX_TEXT_REGIONS entries (RapidOCR locations,
+    most-confident first) with score/verdict always null -- OCR finds WHERE
+    text is but nothing scores whether it is AI-generated, so there is
+    nothing honest to put in those fields. This is a deliberate exception to
+    "every region has a score": the request was to surface detected text
+    without it implying or affecting a verdict. tampered does not get a
+    region entry at all: it scores the whole image (same CLIP embedding as
+    general, a different linear probe on top), not a specific crop, so there
+    is no box to draw for it.
+  - face_crop_all() returns each face's bbox directly (native pixel coords
+    of the image as uploaded -- normalise() only re-encodes the JPEG, it
+    does not resize), so this file no longer re-runs detection just to get a
+    box the way the old single-face _face_bbox() helper did.
   - Models load lazily, on first request, not at import. Flask's debug
     reloader re-executes this module in a supervisor process that never
     serves a request; eager loading would load the ~1.7GB CLIP weights
@@ -76,7 +80,6 @@ if str(ROOT) not in sys.path:
 # into likely_ai / likely_real / uncertain. The score itself is untouched.
 AI_THRESHOLD = 0.60
 REAL_THRESHOLD = 0.40
-MIN_FACE_PX = 64  # kept in sync with quorum/features.py:MIN_FACE
 
 _lock = threading.Lock()
 _state: Optional["_State"] = None
@@ -176,34 +179,6 @@ def _verdict_from_score(score: float) -> str:
     if score <= REAL_THRESHOLD:
         return "likely_real"
     return "uncertain"
-
-
-def _face_bbox(img: Image.Image) -> Optional[dict]:
-    """{"x", "y", "width", "height"} in native pixel coords, or None.
-
-    Re-runs face_crop()'s detection step (same model/rules) -- see module
-    docstring for why this isn't just added to quorum/features.py instead.
-    """
-    import cv2
-    from quorum.features import DET_MAX, MIN_FACE, _detector
-
-    bgr = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
-    h, w = bgr.shape[:2]
-    k = min(1.0, DET_MAX / max(h, w))
-    small = cv2.resize(bgr, (int(w * k), int(h * k))) if k < 1.0 else bgr
-    _, faces = _detector(small.shape[1], small.shape[0]).detect(small)
-    if faces is None or not len(faces):
-        return None
-    f = max(faces, key=lambda r: r[2] * r[3]) / k  # back to native coords
-    x, y, bw, bh = f[:4]
-    if min(bw, bh) < MIN_FACE:
-        return None
-    return {
-        "x": int(round(float(x))),
-        "y": int(round(float(y))),
-        "width": int(round(float(bw))),
-        "height": int(round(float(bh))),
-    }
 
 
 MAX_TEXT_REGIONS = 10  # UI cap on a screenshot/document with dozens of words
@@ -308,7 +283,7 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     st = _get_state()
 
     from quorum.embed import normalise
-    from quorum.features import face_crop
+    from quorum.features import face_crop_all
 
     try:
         raw_img = Image.open(io.BytesIO(payload)).convert("RGB")
@@ -322,13 +297,14 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     prov_report = prov.inspect(payload)
 
     img = normalise(raw_img)  # same JPEG q95 round-trip every probe trained on
-    face_img, face_px = face_crop(img)
-    face_present = face_img is not None and face_px >= MIN_FACE_PX
+    # Multiface: every face at or above MIN_FACE_PX, largest first, each with
+    # its own native-coord bbox -- see the module docstring's regions note.
+    faces = face_crop_all(img)
 
-    batch = [img] + ([face_img] if face_present else [])
-    vecs = st.embedder.embed_batch(batch)  # one CLIP pass for both branches
+    batch = [img] + [f[0] for f in faces]
+    vecs = st.embedder.embed_batch(batch)  # one CLIP pass for every branch
     general_vec = np.asarray(vecs[0], dtype=np.float64)
-    face_vec = np.asarray(vecs[1], dtype=np.float64) if face_present else None
+    face_vecs = [np.asarray(v, dtype=np.float64) for v in vecs[1:]]
 
     general_raw = float(general_vec @ st.general_w + st.general_b)
     tampered_raw = (float(general_vec @ st.tampered_w + st.tampered_b)
@@ -343,10 +319,15 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     tampered_cal = (_platt(tampered_raw / st.shipped.TAMPERED_SCALE, st.cal_tampered)
                      if tampered_raw is not None else None)
 
-    face_cal = None
-    face_shipped = 0.0  # predict.face_score()'s own fill for "no face": 0.0, not 0.5
+    # One pass of the single-face probe per detected face, kept independent
+    # per face (own region, own score/verdict) and then reduced by max() for
+    # signals.face and the shipped score below -- see face_crop_all()'s and
+    # predict.face_score()'s docstrings for why max() and not mean(): one AI
+    # face flags the image, the way one AI branch already does in max(general,
+    # tampered, face).
     regions = []
-    if face_present:
+    face_cals, face_shipped_scores = [], []
+    for (_crop, face_px, bbox), face_vec in zip(faces, face_vecs):
         z = (np.log2(face_px) - st.face_px_mu) / st.face_px_sd
         design = np.concatenate([face_vec, [z]])
         face_raw = float(design @ st.face_w + st.face_b)
@@ -355,21 +336,22 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
         # already computed above -- calling predict.face_score() fresh here
         # would re-run detection and a second CLIP pass for no reason.
         face_shipped = 1.0 / (1.0 + np.exp(-(face_raw - st.shipped.SHIFT)))
+        face_cals.append(face_cal)
+        face_shipped_scores.append(face_shipped)
+        regions.append({
+            "type": "face",
+            "bbox": bbox,
+            "score": round(face_cal, 4),
+            "verdict": _verdict_from_score(face_cal),
+        })
 
-        bbox = _face_bbox(img)
-        if bbox is not None:
-            regions.append({
-                "type": "face",
-                "bbox": bbox,
-                "score": round(face_cal, 4),
-                "verdict": _verdict_from_score(face_cal),
-            })
-        # else: face_crop() found a face but re-detection above didn't --
-        # shouldn't happen, but fail closed (no region) rather than guess a box.
+    face_cal = max(face_cals) if face_cals else None
+    # predict.face_score()'s own fill for "no face": 0.0, not 0.5.
+    face_shipped = max(face_shipped_scores) if face_shipped_scores else 0.0
 
-    # Runs regardless of face_present / content_type -- see _text_regions()
-    # docstring for why this always scans rather than skipping when it looks
-    # unnecessary.
+    # Runs regardless of whether any face was found / content_type -- see
+    # _text_regions() docstring for why this always scans rather than
+    # skipping when it looks unnecessary.
     regions.extend(_text_regions(img, st))
 
     # Display-only, like text -- see the spectral note in the module
@@ -392,7 +374,7 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     verdict = _verdict_from_score(confidence)
 
     content_type = _content_type(general_vec)
-    reliability = _reliability(confidence, face_present, general_cal, face_cal)
+    reliability = _reliability(confidence, bool(faces), general_cal, face_cal)
     explanation = _explanation(verdict, general_cal, tampered_cal, face_cal, content_type)
 
     return {
