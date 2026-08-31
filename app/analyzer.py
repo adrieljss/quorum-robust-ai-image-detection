@@ -13,10 +13,16 @@ Notes worth keeping in mind:
     max() on So-Fake-OOD -- don't swap this back without re-checking those
     numbers. fusion.npz is still used here, just for its Platt calibration,
     not its verdict.
-  - signals.text and degradation_estimate are always None -- no trained,
-    saved model behind either (text branch has two experimental attempts in
-    quorum/detectors/text.py, neither with a saved .npz; degradation head
-    never persisted). A number here would be fabricated, not measured.
+  - signals.degradation_estimate is always None -- the head was never
+    persisted, so a number there would be fabricated rather than measured.
+  - signals.text IS reported, from data/models/text_crop.npz, and is DISPLAY
+    ONLY. That is text ATTEMPT 2 (CLIP on a warped OCR crop, 769-d), which
+    transfers across corpora at 0.8083. Attempt 1, the six OCR statistics, is
+    deliberately NOT saved and must never be shown: it transfers at 0.4627,
+    below chance, with five of six features flipping sign between datasets.
+    Attempt 2 is out of the scorer for different reasons -- worth +0.0022, it
+    collapses to 0.5229 under the degradation grid, and its missingness is
+    label-correlated 3.63:1.
   - provenance IS built now (quorum/provenance.py) and reads C2PA, EXIF, XMP
     and PNG text chunks off the ORIGINAL upload bytes. It never touches
     confidence: it cannot be measured on any eval set we have, because
@@ -82,6 +88,7 @@ class _State:
         from quorum.embed import Embedder
         from quorum.detectors.face import MODEL as FACE_MODEL
         from quorum.detectors.spectral import MODEL as SPECTRAL_MODEL
+        from quorum.detectors.text import CROP_MODEL as TEXT_MODEL
         from quorum.fusion import MODEL as FUSION_MODEL
         import predict as shipped
 
@@ -113,6 +120,19 @@ class _State:
             # `python -m quorum.detectors.spectral --save` was never run. The
             # signal goes back to null rather than the demo failing to start.
             self.spectral_w = self.spectral_b = None
+
+        # ATTEMPT 2 -- CLIP on a warped OCR crop, 769-d, transfers at 0.8083.
+        # NOT attempt 1 (the 6 OCR statistics), which transfers at 0.4627, below
+        # chance. Display only, and not in self.probes.
+        try:
+            with np.load(TEXT_MODEL) as z:
+                self.text_w = np.asarray(z["w"], dtype=np.float64).ravel()
+                self.text_b = float(z["b"][0])
+                self.text_px_mu = float(z["px_mu"])
+                self.text_px_sd = float(z["px_sd"])
+        except FileNotFoundError:
+            # `python -m quorum.detectors.text --save` was never run.
+            self.text_w = self.text_b = None
 
         with np.load(FUSION_MODEL) as z:  # calibration only, not fusion's verdict
             self.cal_face = (float(z["cal_face"][0]), float(z["cal_face"][1]))
@@ -303,6 +323,23 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
             spectral_cal = _platt(float(sf @ st.spectral_w + st.spectral_b),
                                   st.cal_spectral)
 
+    # Same 769-d design as the face branch: CLIP on a warped crop of the largest
+    # OCR region, plus a standardised log2(region height). Costs an OCR pass and
+    # a second CLIP call, which is why it is computed AFTER `confidence` is
+    # already final -- it cannot influence it. null when OCR reads nothing.
+    text_cal = None
+    if st.text_w is not None:
+        from quorum.detectors.text import text_strip, tiles
+        strip, text_px = text_strip(img)
+        if strip is not None:
+            tv = st.embedder.embed_batch(tiles(strip))
+            # Mean over tiles, not max: they are mechanical slices of ONE region,
+            # not independent subjects, so the face branch's rule does not apply.
+            v = np.asarray(tv, dtype=np.float64).mean(0)
+            v /= np.linalg.norm(v) + 1e-9
+            z = (np.log2(max(text_px, 1.0)) - st.text_px_mu) / st.text_px_sd
+            text_cal = _sigmoid(float(np.append(v, z) @ st.text_w + st.text_b))
+
     content_type = _content_type(general_vec)
     reliability = _reliability(confidence, face_present, general_cal, face_cal)
     explanation = _explanation(verdict, general_cal, tampered_cal, face_cal, content_type)
@@ -326,7 +363,11 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
             "general": round(general_cal, 4),
             "face": round(face_cal, 4) if face_cal is not None else None,
             "tampered": round(tampered_cal, 4) if tampered_cal is not None else None,
-            "text": None,        # branch cut -- see module docstring
+            # Transfers at 0.8083 across corpora but collapses to 0.5229 under
+            # the degradation grid, and its MISSINGNESS is label-correlated
+            # 3.63:1 -- real text disappears far sooner than AI text. So a null
+            # here leans real, and the UI must not read absence as innocence.
+            "text": round(text_cal, 4) if text_cal is not None else None,
             # Near-chance on its own (0.6736 clean, 0.5471 under noise) and NOT
             # in the score -- label it accordingly in the UI, it is context for
             # a verdict rather than a second opinion on one.

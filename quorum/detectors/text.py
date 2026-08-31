@@ -236,6 +236,10 @@ def save(clf, st, path=MODEL):
 # probe on 768 + 1 standardised size column. Face holds 0.9421/0.9168 on
 # so_fake_ood and 0.9520/0.8887 on organizer_val, no sign flip.
 # ============================================================================
+# ATTEMPT 2's model, and a deliberately different filename from MODEL above.
+# Attempt 1 transfers at 0.4627 -- BELOW CHANCE -- so the two must never be
+# confused for one another by a loader reaching for "the text probe".
+CROP_MODEL = MODELS / "text_crop.npz"
 CROPS = MODELS.parent / "raw" / "text_crops"
 CROP_H = 224          # CLIP's input side; the strip's HEIGHT, not its width
 MAX_TILES = 3
@@ -414,6 +418,26 @@ def crop_design(X, rows, st):
 def crop_px_stats(rows):
     z = np.log2(np.maximum(rows.text_px.values.astype(np.float32), 1.0))
     return float(z.mean()), float(z.std()) or 1.0
+
+
+def save_crops(train_source="sid_train", path=CROP_MODEL):
+    """Fit attempt 2 on one corpus and save it. DISPLAY ONLY -- see __main__.
+
+    Same shape as face.npz (w[1,769], b, px_mu, px_sd) because it is the same
+    design: 768 CLIP dims plus one standardised log2(size) column. Fitted on
+    sid_train alone, which is the configuration evaluate_crops() measures
+    transferring at 0.8083 to organizer_val -- so the saved probe is the one
+    with a published out-of-corpus number, not a better-looking pooled fit
+    nobody has a transfer figure for.
+    """
+    X, R = load_crops(train_source)
+    st = crop_px_stats(R)
+    clf = LogisticRegression(max_iter=2000).fit(crop_design(X, R, st),
+                                                R.label.values.astype(int))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(path, w=clf.coef_.reshape(1, -1), b=np.asarray(clf.intercept_).reshape(1),
+             px_mu=np.float32(st[0]), px_sd=np.float32(st[1]))
+    return clf, st
 
 
 def evaluate_crops(train_source="sid_train", eval_source="organizer_val"):
@@ -683,6 +707,21 @@ def evaluate_grid(train_source="sid_train"):
 
 
 if __name__ == "__main__":
+    if "--save" in sys.argv:
+        # ATTEMPT 2 ONLY. Attempt 1 (the 6 OCR statistics, MODEL above) is not
+        # saved and must not be: it transfers at 0.4627, below chance, with five
+        # of six features flipping sign across datasets. A displayed number that
+        # is ANTI-correlated with the truth on unseen data is worse than no
+        # number, which is the whole reason there are two attempts here.
+        clf, st = save_crops()
+        print(f"text crop probe -> {CROP_MODEL}  "
+              f"({clf.coef_.size + 1} parameters, "
+              f"{CROP_MODEL.stat().st_size / 1024:.1f} KB, "
+              f"log2(text_px) mu={st[0]:.2f} sd={st[1]:.2f})")
+        print("DISPLAY ONLY. predict.py does not load this; it is worth +0.0022")
+        print("in the scorer and collapses to 0.5229 under the degradation grid.")
+        raise SystemExit
+
     from PIL import Image, ImageDraw
 
     # --- the extractor, on images that need no dataset -----------------------
