@@ -1,0 +1,172 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Quorum architecture">
+    <mxGraphModel dx="1900" dy="1100" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1960" pageHeight="1450" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Quorum &amp;#8212; how one score is produced, and what else is in the box&lt;br&gt;&lt;font style='font-size:14px;color:#666666'&gt;frozen CLIP &amp;#183; three linear probes &amp;#183; one max() &amp;#183; 2,310 trained numbers&lt;/font&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontSize=24;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="1200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="shipped" value="SHIPPED &amp;#8212; this, and nothing else, produces &lt;b&gt;pred&lt;/b&gt;" style="swimlane;html=1;rounded=1;arcSize=3;startSize=44;collapsible=0;fontSize=15;fontStyle=1;align=left;spacingLeft=14;verticalAlign=middle;fillColor=#f7fbf7;strokeColor=#82b366;strokeWidth=2;swimlaneFillColor=#fbfefb;" vertex="1" parent="1">
+          <mxGeometry x="40" y="125" width="1870" height="690" as="geometry" />
+        </mxCell>
+        <mxCell id="img" value="&lt;b&gt;Input image&lt;/b&gt;&lt;br&gt;any size&lt;br&gt;jpg / png / webp / bmp" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="20" y="195" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="clip" value="&lt;b&gt;CLIP ViT-L-14-quickgelu&lt;/b&gt;&lt;br&gt;openai weights, &lt;b&gt;FROZEN&lt;/b&gt;&lt;br&gt;304M params, fp16&lt;br&gt;&lt;i&gt;never fine-tuned&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="250" y="170" width="230" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="v" value="&lt;b&gt;v&lt;/b&gt; &amp;#8212; 768-d&lt;br&gt;L2-normalised" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#f5f5f5;strokeColor=#999999;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="550" y="195" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="gen" value="&lt;b&gt;general probe&lt;/b&gt;&lt;br&gt;z&lt;sub&gt;g&lt;/sub&gt; = w&amp;#183;v + b&lt;br&gt;769 numbers &amp;#183; 3.5 KB" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="780" y="85" width="210" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="tam" value="&lt;b&gt;tampered probe&lt;/b&gt;&lt;br&gt;z&lt;sub&gt;t&lt;/sub&gt; = 1.25 &amp;#215; (w&amp;#183;v + b)&lt;br&gt;769 numbers &amp;#183; 3.5 KB" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="780" y="220" width="210" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="zmax" value="&lt;b&gt;z = max(z&lt;sub&gt;g&lt;/sub&gt;, z&lt;sub&gt;t&lt;/sub&gt;)&lt;/b&gt;&lt;br&gt;max in &lt;i&gt;logit&lt;/i&gt; space" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="1060" y="140" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="sig" value="&lt;b&gt;p = &amp;#963;(z &amp;#8722; 1.4448)&lt;/b&gt;&lt;br&gt;puts the operating&lt;br&gt;point 0.8092 at 0.5" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="1340" y="135" width="210" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="facedet" value="&lt;b&gt;face_crop()&lt;/b&gt;&lt;br&gt;detect + crop&lt;br&gt;the largest face" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="250" y="425" width="230" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="faceemb" value="&lt;b&gt;the same frozen CLIP&lt;/b&gt;, on the crop&lt;br&gt;&amp;#8853; standardised log&amp;#8322;(face_px)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#f5f5f5;strokeColor=#999999;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="550" y="430" width="240" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="faceprobe" value="&lt;b&gt;face probe&lt;/b&gt; &amp;#183; &lt;b&gt;769-d&lt;/b&gt;&lt;br&gt;z&lt;sub&gt;f&lt;/sub&gt; = w&amp;#183;f + b&lt;br&gt;772 numbers &amp;#183; 4.0 KB" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="840" y="425" width="220" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="facesig" value="&lt;b&gt;p&lt;sub&gt;face&lt;/sub&gt; = &amp;#963;(z&lt;sub&gt;f&lt;/sub&gt; &amp;#8722; 1.4448)&lt;/b&gt;&lt;br&gt;&lt;b&gt;0.0&lt;/b&gt; if no face found" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="1120" y="430" width="200" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="pred" value="&lt;b&gt;pred = max(p, p&lt;sub&gt;face&lt;/sub&gt;)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;" vertex="1" parent="shipped">
+          <mxGeometry x="1340" y="295" width="210" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="verdict" value='&lt;b&gt;verdict&lt;/b&gt;&lt;br&gt;"AI" if pred &amp;#8805; 0.5&lt;br&gt;else "real"' style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="1620" y="135" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="json" value="&lt;b&gt;predictions.json&lt;/b&gt;&lt;br&gt;[{image_path, pred}]" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="1620" y="295" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n_clip" value="&lt;b&gt;Frozen on purpose.&lt;/b&gt; Detection costs 769 trained numbers&lt;br&gt;per branch on a backbone you already run. Stated with its&lt;br&gt;limitation: a 2023 backbone has never seen a 2026&lt;br&gt;generator's artifacts &amp;#8212; and that is our largest failure." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;" vertex="1" parent="shipped">
+          <mxGeometry x="250" y="280" width="300" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_gen" value="trained on SID_Set + WildFake-Midjourney + 4 of 5 calib_ood&lt;br&gt;generator families; calibration rotated over the 5th and the&lt;br&gt;five weight vectors averaged" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;" vertex="1" parent="shipped">
+          <mxGeometry x="770" y="25" width="340" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="n_tam" value="&lt;b&gt;1.25 is a policy dial, not a fitted parameter.&lt;/b&gt; max() is not&lt;br&gt;invariant to rescaling one arm, so this alone sets false&lt;br&gt;positives against edit recall (8.5% / 74.6%). Trained on&lt;br&gt;tampered-vs-real only &amp;#8212; never sees a synthetic image." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;" vertex="1" parent="shipped">
+          <mxGeometry x="770" y="310" width="345" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_max" value="&lt;b&gt;max(), not a learned combiner.&lt;/b&gt; The task is&lt;br&gt;disjunctive: either arm firing means AI touched it.&lt;br&gt;Fusion LR scored lower on both eval sets." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;" vertex="1" parent="shipped">
+          <mxGeometry x="1050" y="230" width="290" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_face" value="&lt;b&gt;The only branch with DIFFERENT features, and the only one that ever won a place.&lt;/b&gt;&lt;br&gt;Six 768-d branches have lost in max(): spectral, per-generator specialists, an MLP head,&lt;br&gt;face-tampered, general-noise, modern-general. This one leaves the shared path at the PIXELS.&lt;br&gt;Absent &amp;#8594; 0.0, never 0.5: a branch that did not fire must not be able to raise a max()." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;" vertex="1" parent="shipped">
+          <mxGeometry x="560" y="520" width="780" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="demo" value="DEMO ONLY &amp;#8212; computed per request, shown beside the verdict, &lt;b&gt;never fed back into pred&lt;/b&gt;" style="swimlane;html=1;rounded=1;arcSize=3;startSize=44;collapsible=0;fontSize=15;fontStyle=1;align=left;spacingLeft=14;verticalAlign=middle;fillColor=#f7f9fd;strokeColor=#6c8ebf;strokeWidth=2;swimlaneFillColor=#fbfcfe;" vertex="1" parent="1">
+          <mxGeometry x="40" y="845" width="1170" height="450" as="geometry" />
+        </mxCell>
+        <mxCell id="d_cal" value="&lt;b&gt;Platt-calibrated display scores&lt;/b&gt;&lt;br&gt;general &amp;#183; tampered &amp;#183; face&lt;br&gt;&lt;i&gt;a DIFFERENT scale from pred&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="demo">
+          <mxGeometry x="20" y="65" width="250" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="d_content" value="&lt;b&gt;content_type&lt;/b&gt;&lt;br&gt;CLIP zero-shot over&lt;br&gt;5 prompt vectors" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="demo">
+          <mxGeometry x="295" y="65" width="210" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="d_rel" value="&lt;b&gt;reliability&lt;/b&gt;&lt;br&gt;0.6&amp;#183;decisiveness + 0.4&amp;#183;agreement&lt;br&gt;high | medium | low" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="demo">
+          <mxGeometry x="530" y="65" width="230" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="d_regions" value="&lt;b&gt;regions[]&lt;/b&gt;&lt;br&gt;face bounding box&lt;br&gt;drawn over the upload" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="demo">
+          <mxGeometry x="785" y="65" width="210" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="d_prov" value="&lt;b&gt;provenance&lt;/b&gt; &amp;#8212; C2PA &amp;#183; EXIF &amp;#183; XMP &amp;#183; PNG text&lt;br&gt;read from the ORIGINAL bytes, before normalise()&lt;br&gt;&lt;b&gt;evidence, not inference&lt;/b&gt; &amp;#8212; never enters pred" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="demo">
+          <mxGeometry x="20" y="180" width="250" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="d_patch" value="&lt;b&gt;patch self-consistency heat map&lt;/b&gt; &amp;#8212; built, not yet wired&lt;br&gt;argmax over a 3&amp;#215;3 grid finds the edited cell &lt;b&gt;73.5%&lt;/b&gt; of the time (chance 11.1%, top-3 86.1%)&lt;br&gt;Zero new parameters, 9&amp;#215; inference. It is the explainability we otherwise do not have." style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="demo">
+          <mxGeometry x="295" y="180" width="700" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_prov" value="&lt;b&gt;On our own test set the asymmetry is stark.&lt;/b&gt; All 7 GPT-image-2 files carry a signed C2PA manifest asserting IPTC&lt;br&gt;digitalSourceType = trainedAlgorithmicMedia &amp;#8212; and the pixel model misses &lt;b&gt;4 of those 7&lt;/b&gt;. The 4 open-weights Janus-Pro&lt;br&gt;files and every real photo carry nothing. So it detects &lt;i&gt;policy-compliant commercial generators&lt;/i&gt;, not AI, and one&lt;br&gt;re-save strips it. A best case, not a general one &amp;#8212; which is exactly why it is reported and not scored." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;" vertex="1" parent="demo">
+          <mxGeometry x="295" y="245" width="830" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_demo" value="&lt;b&gt;Why the separation matters.&lt;/b&gt; The displayed per-branch numbers are Platt-calibrated for readability; &lt;b&gt;pred&lt;/b&gt; is not. Quoting a signal as if it were the score is the exact drift that has bitten this repo five times.&lt;br&gt;One definition &amp;#8212; &lt;code&gt;predict.score_embeddings&lt;/code&gt; &amp;#8212; and everything else is decoration." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;" vertex="1" parent="demo">
+          <mxGeometry x="20" y="320" width="1120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="cut" value="BUILT, MEASURED, NOT WIRED &amp;#8212; each carries the number that killed it" style="swimlane;html=1;rounded=1;arcSize=3;startSize=44;collapsible=0;fontSize=15;fontStyle=1;align=left;spacingLeft=14;verticalAlign=middle;fillColor=#fdf8f8;strokeColor=#b85450;strokeWidth=2;swimlaneFillColor=#fefbfb;" vertex="1" parent="1">
+          <mxGeometry x="1225" y="845" width="685" height="425" as="geometry" />
+        </mxCell>
+        <mxCell id="c_spec" value="&lt;b&gt;spectral / &amp;#8220;regularity&amp;#8221;&lt;/b&gt;&lt;br&gt;8 hand-crafted frequency features&lt;br&gt;clean &lt;b&gt;0.7365&lt;/b&gt; &amp;#183; worst &lt;b&gt;0.5596&lt;/b&gt; (blur10)&lt;br&gt;&lt;i&gt;demo returns null&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="cut">
+          <mxGeometry x="20" y="65" width="310" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="c_text" value="&lt;b&gt;text&lt;/b&gt; &amp;#8212; cut TWICE, on measurement&lt;br&gt;OCR stats: transfer &lt;b&gt;0.4627&lt;/b&gt;, below chance&lt;br&gt;CLIP on warped crops: works, worth &lt;b&gt;+0.0022&lt;/b&gt;&lt;br&gt;under the grid: 0.8284 &amp;#8594; &lt;b&gt;0.5229&lt;/b&gt;, and the loss&lt;br&gt;is label-correlated 3.63:1&lt;br&gt;&lt;i&gt;demo returns null&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="cut">
+          <mxGeometry x="350" y="65" width="315" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="c_fusion" value="&lt;b&gt;fusion &amp;#8212; logistic regression, 14 columns&lt;/b&gt;&lt;br&gt;&lt;b&gt;0.8511&lt;/b&gt; against max()'s &lt;b&gt;0.8597&lt;/b&gt; held out&lt;br&gt;Reaches parity only by becoming the general probe:&lt;br&gt;it can match the headline OR detect tampering,&lt;br&gt;never both" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="cut">
+          <mxGeometry x="20" y="180" width="310" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n_cut" value="All still in the repo, and in the fusion vector at neutral fill, so any one of them is a line away from being wired back. None is worth the line today." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;" vertex="1" parent="cut">
+          <mxGeometry x="20" y="305" width="645" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="stats" value="&lt;b&gt;The whole trained model&lt;/b&gt; &amp;#160;&amp;#8226;&amp;#160; 2,310 numbers &amp;#183; 10.9 KB of .npz &amp;#183; 3 linear probes &amp;#183; no fine-tuning&lt;br&gt;&lt;br&gt;&lt;b&gt;So-Fake-OOD, generator families never seen in training&lt;/b&gt; &amp;#160;&amp;#8226;&amp;#160; AUROC 0.9265 &amp;#183; ACC 0.8380 &amp;#183; F1 0.8243 &amp;#183; FPR 8.25% &amp;#183; FNR 24.12%" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1295" width="900" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="grid" value="&lt;b&gt;Robustness is the evaluation, not a pipeline step&lt;/b&gt;&lt;br&gt;Every eval image is scored under all 15 settings: clean + jpeg(90/70/50/30) + blur(0.5/1/2) + resize(0.5/0.25) + noise(.02/.05/.10) + jitter + crop&lt;br&gt;AUROC &lt;b&gt;0.9265 clean &amp;#8594; 0.8911 worst&lt;/b&gt; (noise01). Nothing above changes; the claim is that the score does not either." style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="980" y="1295" width="930" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="img" target="clip">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="clip" target="v">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="v" target="gen">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="v" target="tam">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="gen" target="zmax">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="tam" target="zmax">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="zmax" target="sig">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="sig" target="pred">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="facedet" target="faceemb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="faceemb" target="faceprobe">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="faceprobe" target="facesig">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="facesig" target="pred">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="pred" target="verdict">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;" edge="1" parent="1" source="pred" target="json">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" value="pixels, not the&lt;br&gt;shared embedding" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;dashed=1;" edge="1" parent="1" source="img" target="facedet">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" value="fusion.npz's Platt&lt;br&gt;constants only" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;dashed=1;strokeColor=#9673a6;fontColor=#9673a6;" edge="1" parent="1" source="c_fusion" target="d_cal">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="the same embedding, reused&lt;br&gt;&amp;#8212; no second CLIP pass" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;dashed=1;strokeColor=#9673a6;fontColor=#9673a6;" edge="1" parent="1" source="v" target="d_content">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
