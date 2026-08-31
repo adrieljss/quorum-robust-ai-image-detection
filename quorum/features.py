@@ -43,26 +43,33 @@ def _detector(w, h):
     return d
 
 
-def face_crop(img: Image.Image):
-    """(aligned 224x224 PIL, box_px) or (None, 0.0).
+def _detect(img: Image.Image):
+    """(bgr native, faces in native coords) or (bgr native, None).
+
+    Shared detect step for face_crop() and face_crop_all() -- detection does
+    not need native resolution, only the crop does, so this detects on a
+    shrunk copy and scales landmarks back rather than resizing the image
+    twice.
+    """
+    import cv2
+    bgr = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
+    h, w = bgr.shape[:2]
+    k = min(1.0, DET_MAX / max(h, w))
+    small = cv2.resize(bgr, (int(w * k), int(h * k))) if k < 1.0 else bgr
+    _, faces = _detector(small.shape[1], small.shape[0]).detect(small)
+    if faces is None or not len(faces):
+        return bgr, None
+    return bgr, faces / k     # back to native coords
+
+
+def _warp(bgr, f):
+    """One YuNet detection row (native coords) -> (aligned 224x224 PIL, box_px).
 
     Alignment is the whole point: landmarks warp every face into one coordinate
     frame, so 'is this eye consistent with that eye' becomes a fixed-position
     comparison instead of a vision problem.
     """
     import cv2
-    bgr = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
-    h, w = bgr.shape[:2]
-    # Detection does not need native resolution; the CROP does. Detect on a
-    # shrunk copy, scale the landmarks back, warp from the full-res original.
-    k = min(1.0, DET_MAX / max(h, w))
-    small = cv2.resize(bgr, (int(w * k), int(h * k))) if k < 1.0 else bgr
-    _, faces = _detector(small.shape[1], small.shape[0]).detect(small)
-    if faces is None or not len(faces):
-        return None, 0.0
-    f = max(faces, key=lambda r: r[2] * r[3]) / k     # back to native coords
-    if min(f[2], f[3]) < MIN_FACE:
-        return None, 0.0
     # YuNet names its landmarks from the subject's point of view ("right eye"),
     # but emits them image-left first -- verified 13/13 on COCO. That already
     # matches the template, so do NOT swap rows (PIPELINE 5.2 says otherwise
@@ -76,6 +83,53 @@ def face_crop(img: Image.Image):
     # harsher effective degradation than a 181px one downscaled to it (measured
     # 2.8x spread on COCO). Without this the probe cannot tell them apart.
     return Image.fromarray(cv2.cvtColor(out, cv2.COLOR_BGR2RGB)), float(min(f[2], f[3]))
+
+
+def face_crop(img: Image.Image):
+    """(aligned 224x224 PIL, box_px) or (None, 0.0) -- the single LARGEST face.
+
+    This is the function the training pipeline (extract_variants below) and
+    face.npz's cache are built on: one row per image, matching how the probe
+    was fit. Do not change its selection rule -- see face_crop_all() for the
+    multi-face variant used elsewhere.
+    """
+    bgr, faces = _detect(img)
+    if faces is None:
+        return None, 0.0
+    f = max(faces, key=lambda r: r[2] * r[3])
+    if min(f[2], f[3]) < MIN_FACE:
+        return None, 0.0
+    return _warp(bgr, f)
+
+
+def face_crop_all(img: Image.Image, max_faces: int = 10):
+    """[(aligned 224x224 PIL, box_px, bbox_native_px), ...], largest first.
+
+    Same detector and alignment as face_crop(), but keeps every face at or
+    above MIN_FACE instead of only the largest. face.npz is still a
+    single-face-per-crop probe (see face_crop()'s docstring) -- this just
+    lets a caller run that same probe over every face in an image and combine
+    the results itself (e.g. max() across faces), rather than silently
+    dropping every face but the largest. Not used by the training pipeline or
+    its cache, so it cannot affect anything face.npz was fit on.
+
+    bbox is {"x", "y", "width", "height"} in native pixel coords, the same
+    shape as every other region box.
+    """
+    bgr, faces = _detect(img)
+    if faces is None:
+        return []
+    keep = [f for f in faces if min(f[2], f[3]) >= MIN_FACE]
+    keep.sort(key=lambda r: r[2] * r[3], reverse=True)
+    out = []
+    for f in keep[:max_faces]:
+        crop, px = _warp(bgr, f)
+        x, y, bw, bh = f[:4]
+        out.append((crop, px, {
+            "x": int(round(float(x))), "y": int(round(float(y))),
+            "width": int(round(float(bw))), "height": int(round(float(bh))),
+        }))
+    return out
 
 
 FFT_N = 512      # fixed window, NATIVE resolution -- see spectral_features
