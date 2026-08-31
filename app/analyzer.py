@@ -86,7 +86,13 @@ class _State:
 
         self.shipped = shipped
         self.embedder = Embedder()
-        self.probes = shipped.load_probes()  # [(w_general, b), (w_tampered, b)]
+        # load_probes() pre-scales tampered's (w, b) by shipped.TAMPERED_SCALE
+        # (currently 1.25) as of the three-branch predict.py update. That scale
+        # is exactly right for feeding st.probes back into score_embeddings()
+        # below, but it means self.tampered_w/b are NOT on the same scale
+        # fusion.npz's cal_tampered was fitted against -- see the unscaling step
+        # in analyze_image() where signals.tampered is computed.
+        self.probes = shipped.load_probes()  # [(w_general, b), (w_tampered*1.25, b*1.25)]
         self.general_w = np.asarray(self.probes[0][0], dtype=np.float64)
         self.general_b = float(self.probes[0][1])
         if len(self.probes) > 1:
@@ -252,20 +258,27 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     tampered_raw = (float(general_vec @ st.tampered_w + st.tampered_b)
                      if st.tampered_w is not None else None)
 
-    # THE shipped score -- see module docstring, do not recompute by hand.
-    confidence = float(st.shipped.score_embeddings(general_vec[None, :], st.probes)[0])
-    verdict = _verdict_from_score(confidence)
-
     general_cal = _sigmoid(general_raw)
-    tampered_cal = _platt(tampered_raw, st.cal_tampered) if tampered_raw is not None else None
+    # tampered_raw comes from st.probes, which load_probes() now pre-scales by
+    # shipped.TAMPERED_SCALE. That scale is correct for score_embeddings() below
+    # (it uses st.probes directly), but fusion.npz's cal_tampered was fitted on
+    # the UNSCALED decision value -- undo the scale before calibrating this
+    # display-only copy, or the number shown here reads on the wrong axis.
+    tampered_cal = (_platt(tampered_raw / st.shipped.TAMPERED_SCALE, st.cal_tampered)
+                     if tampered_raw is not None else None)
 
     face_cal = None
+    face_shipped = 0.0  # predict.face_score()'s own fill for "no face": 0.0, not 0.5
     regions = []
     if face_present:
         z = (np.log2(face_px) - st.face_px_mu) / st.face_px_sd
         design = np.concatenate([face_vec, [z]])
         face_raw = float(design @ st.face_w + st.face_b)
         face_cal = _platt(face_raw, st.cal_face)
+        # Same formula as predict.face_score(), reusing the face_vec/face_px
+        # already computed above -- calling predict.face_score() fresh here
+        # would re-run detection and a second CLIP pass for no reason.
+        face_shipped = 1.0 / (1.0 + np.exp(-(face_raw - st.shipped.SHIFT)))
 
         bbox = _face_bbox(img)
         if bbox is not None:
@@ -277,6 +290,15 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
             })
         # else: face_crop() found a face but re-detection above didn't --
         # shouldn't happen, but fail closed (no region) rather than guess a box.
+
+    # THE shipped score -- see module docstring, do not recompute by hand.
+    # Since the face branch joined predict.py, this is a THREE-branch max
+    # (general, tampered, face) -- omitting face= here would silently revert
+    # to the old two-branch score and under-report confidence on every image
+    # that has a face.
+    confidence = float(st.shipped.score_embeddings(
+        general_vec[None, :], st.probes, face=np.array([face_shipped]))[0])
+    verdict = _verdict_from_score(confidence)
 
     content_type = _content_type(general_vec)
     reliability = _reliability(confidence, face_present, general_cal, face_cal)
@@ -309,5 +331,3 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
         "reliability": reliability,
         "regions": regions,
     }
- 
- 
