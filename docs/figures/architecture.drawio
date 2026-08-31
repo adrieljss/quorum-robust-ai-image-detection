@@ -49,8 +49,11 @@
         <mxCell id="pred" value="&lt;b&gt;pred = max(p, p&lt;sub&gt;face&lt;/sub&gt;)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;" vertex="1" parent="shipped">
           <mxGeometry x="1350" y="290" width="210" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="verdict" value='&lt;b&gt;verdict&lt;/b&gt;&lt;br&gt;"AI" if pred &amp;#8805; 0.5&lt;br&gt;else "real"' style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="shipped">
-          <mxGeometry x="1620" y="130" width="200" height="90" as="geometry" />
+        <mxCell id="verdict" value="&lt;b&gt;verdict &amp;#183; threshold &amp;#964;&lt;/b&gt;&lt;br&gt;&amp;#8220;AI&amp;#8221; if pred &amp;#8805; &lt;b&gt;0.5&lt;/b&gt;&lt;br&gt;&amp;#8801; raw score &amp;#8805; &lt;b&gt;0.8092&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="shipped">
+          <mxGeometry x="1610" y="125" width="210" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n_thr" value="&lt;b&gt;0.5 is not a default &amp;#8212; it is the operating point, moved.&lt;/b&gt;&lt;br&gt;&amp;#964; = 0.8092 was chosen first, anchored at 8.25% false&lt;br&gt;positives on So-Fake-OOD reals, a pool no branch trains on.&lt;br&gt;The shift then puts it at 0.5 so the emitted number reads&lt;br&gt;naturally and AUROC is bit-identical.&lt;br&gt;&lt;i&gt;The demo bands it further &amp;#8212; 0.40 / 0.60 with an &amp;#8220;uncertain&amp;#8221; middle.&lt;br&gt;Inside that band accuracy is &lt;b&gt;0.5229&lt;/b&gt;, outside it &lt;b&gt;0.8726&lt;/b&gt;: the hedge is earned.&lt;/i&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;" vertex="1" parent="shipped">
+          <mxGeometry x="1400" y="525" width="445" height="95" as="geometry" />
         </mxCell>
         <mxCell id="json" value="&lt;b&gt;predictions.json&lt;/b&gt;&lt;br&gt;[{image_path, pred}]" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="shipped">
           <mxGeometry x="1620" y="290" width="200" height="70" as="geometry" />

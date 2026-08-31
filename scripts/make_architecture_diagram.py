@@ -146,8 +146,19 @@ box("facesig", "<b>p<sub>face</sub> = max(p<sub>face,1</sub> &#8230; "
 
 box("pred", "<b>pred = max(p, p<sub>face</sub>)</b>", 1350, 290, 210, 60,
     BOX + ORANGE, font=14, parent=S)
-box("verdict", '<b>verdict</b><br>"AI" if pred &#8805; 0.5<br>else "real"',
-    1620, 130, 200, 90, BOX + GREEN, parent=S)
+box("verdict", "<b>verdict &#183; threshold &#964;</b><br>"
+               "&#8220;AI&#8221; if pred &#8805; <b>0.5</b><br>"
+               f"&#8801; raw score &#8805; <b>{op}</b>",
+    1610, 125, 210, 100, BOX + GREEN, parent=S)
+note("n_thr", "<b>0.5 is not a default &#8212; it is the operating point, moved.</b><br>"
+              f"&#964; = {op} was chosen first, anchored at 8.25% false<br>"
+              "positives on So-Fake-OOD reals, a pool no branch trains on.<br>"
+              f"The shift then puts it at 0.5 so the emitted number reads<br>"
+              "naturally and AUROC is bit-identical.<br>"
+              "<i>The demo bands it further &#8212; 0.40 / 0.60 with an "
+              "&#8220;uncertain&#8221; middle.<br>Inside that band accuracy is "
+              "<b>0.5229</b>, outside it <b>0.8726</b>: the hedge is earned.</i>",
+     1400, 525, 445, 95, parent=S)
 box("json", "<b>predictions.json</b><br>[{image_path, pred}]",
     1620, 290, 200, 70, BOX + GREEN, parent=S)
 
