@@ -52,12 +52,29 @@
       <section id="video-results-stage" class="stage" aria-labelledby="video-results-title">
         <div class="results-toolbar"><div><p class="eyebrow">Analysis</p><h2 id="video-results-title">Video result</h2></div><button type="button" id="video-new-btn" class="ghost-btn">New video</button></div>
         <article class="video-result-card">
-          <video id="result-video" controls playsinline></video>
-          <div class="result-body">
-            <div class="verdict-row"><div><p class="eyebrow">Verdict</p><p id="video-verdict-label" class="verdict-label">Uncertain</p></div><div class="confidence" aria-label="Confidence"><svg class="ring" viewBox="0 0 96 96" width="88" height="88"><circle class="ring-track" cx="48" cy="48" r="38" /><circle id="video-confidence-ring" class="ring-value" cx="48" cy="48" r="38" /></svg><div class="confidence-copy"><strong id="video-confidence-value">0%</strong></div></div></div>
-            <p id="video-explanation" class="explanation"></p>
-            <section class="signals"><div class="signals-head"><h3>Model signals</h3><p class="muted tiny">Each score is that model’s probability the video is AI-generated.</p></div><ul id="video-signal-list" class="signal-list"></ul></section>
+          <div class="video-player-pane">
+            <video id="result-video" controls playsinline></video>
+            <canvas id="video-frame-canvas" class="video-frame-canvas is-hidden" aria-label="Annotated analyzed video frame"></canvas>
+            <div class="video-timeline" aria-label="Analyzed video timeline">
+              <div id="video-frame-markers" class="video-frame-markers" aria-hidden="true"></div>
+              <input id="video-scrubber" class="video-scrubber" type="range" min="0" max="0" value="0" step="0.01" aria-label="Video timeline" />
+            </div>
+            <div class="video-time"><span id="video-current-time">0:00</span><span id="video-duration">0:00</span></div>
+            <p id="video-frame-hint" class="muted tiny">Colored markers show analyzed frames. Seek to a marker to inspect its prediction.</p>
           </div>
+          <div class="result-body">
+            <p id="video-frame-title" class="eyebrow">Video summary</p>
+            <div class="verdict-row"><div><p class="eyebrow">Verdict</p><p id="video-verdict-label" class="verdict-label">Uncertain</p></div><div class="confidence" aria-label="Confidence"><svg class="ring" viewBox="0 0 96 96" width="88" height="88"><circle class="ring-track" cx="48" cy="48" r="38" /><circle id="video-confidence-ring" class="ring-value" cx="48" cy="48" r="38" /></svg><div class="confidence-copy"><strong id="video-confidence-value">0%</strong></div></div></div>
+            <section class="signals"><div class="signals-head"><h3>Single Predictions</h3><p class="muted tiny">Each score is that model’s probability the selected frame is AI-generated.</p></div><ul id="video-signal-list" class="signal-list"></ul></section>
+            <section id="video-regions-panel" class="regions-panel is-hidden" aria-labelledby="video-regions-title">
+              <div class="regions-head"><h3 id="video-regions-title">Multi Predictions</h3><p class="muted tiny">Detected areas in the selected frame.</p></div>
+              <div class="prediction-groups">
+                <section class="prediction-group" aria-labelledby="video-accounted-title"><h4 id="video-accounted-title">Accounted</h4><ul id="video-accounted-region-list" class="region-list"></ul></section>
+                <section class="prediction-group" aria-labelledby="video-unaccounted-title"><h4 id="video-unaccounted-title">Unaccounted</h4><ul id="video-unaccounted-region-list" class="region-list"></ul></section>
+              </div>
+            </section>
+          </div>
+          <svg id="video-region-connectors" class="region-connectors" aria-hidden="true"></svg>
         </article>
       </section>
     </main>

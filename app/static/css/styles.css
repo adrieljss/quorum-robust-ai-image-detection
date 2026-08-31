@@ -541,19 +541,102 @@ h1 {
 
 .video-result-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
+  align-items: stretch;
+  min-height: 460px;
   overflow: hidden;
   border-radius: var(--radius);
   background: var(--paper);
   box-shadow: var(--shadow);
+  position: relative;
 }
 
-.video-result-card > video {
+.video-player-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #1f140d;
+  grid-column: 1;
+  min-height: 460px;
+}
+
+.video-player-pane > video {
   display: block;
   width: 100%;
   min-height: 320px;
-  height: 100%;
+  flex: 1;
   background: #1f140d;
+}
+
+.video-result-card.has-frame-results .video-player-pane > video {
+  display: none;
+}
+
+.video-frame-canvas {
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  flex: 1;
+  object-fit: contain;
+  background: #1f140d;
+}
+
+.video-timeline {
+  position: relative;
+  height: 28px;
+  margin: 10px 16px 0;
+}
+
+.video-frame-markers {
+  position: absolute;
+  inset: 0 8px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.video-frame-marker {
+  position: absolute;
+  bottom: 5px;
+  width: 4px;
+  height: 13px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: #ff3b30;
+  box-shadow: 0 0 0 1px rgba(31, 20, 13, 0.85);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.video-frame-marker.is-real {
+  background: #16c172;
+}
+
+.video-frame-marker.is-uncertain {
+  background: #f6a609;
+}
+
+.video-scrubber {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--orange);
+  z-index: 1;
+}
+
+.video-time {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 16px 4px;
+  color: rgba(255, 250, 244, 0.8);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.video-player-pane .tiny {
+  margin: 4px 16px 14px;
+  color: rgba(255, 250, 244, 0.7);
 }
 
 .result-visual {
@@ -782,6 +865,11 @@ h1 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.video-result-card > .result-body {
+  grid-column: 2;
+  min-width: 0;
 }
 
 .prediction-group h4 {
