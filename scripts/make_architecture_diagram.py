@@ -126,19 +126,23 @@ box("sig", f"<b>p = &#963;(z &#8722; {shift:.4f})</b><br>puts the operating<br>"
            f"point {op} at 0.5",
     1350, 130, 210, 90, BOX + ORANGE, parent=S)
 
-box("facedet", "<b>face_crops()</b><br>detect + align<br>"
-               "<b>every</b> face &#8805; 64px<br>(capped at 8)",
-    260, 430, 230, 85, BOX + GREY, parent=S)
-box("faceemb", "<b>the same frozen CLIP</b>, on the crop<br>"
-               "&#8853; standardised log&#8322;(face_px)",
-    560, 435, 240, 75, BOX + SOLID_GREY, parent=S)
-box("faceprobe", f"<b>face probe</b> &#183; <b>769-d</b><br>z<sub>f</sub> = w&#183;f + b"
-                 f"<br>{f_n:,} numbers &#183; {f_kb:.1f} KB",
-    850, 430, 220, 85, parent=S)
-box("facesig", f"<b>p<sub>face</sub> = max<sub>i</sub> &#963;(z<sub>f,i</sub> "
-               f"&#8722; {shift:.4f})</b><br>over every face<br>"
-               "<b>0.0</b> if none found",
-    1130, 435, 200, 75, BOX + ORANGE, parent=S)
+box("facedet", "<b>face_crops()</b><br>detect + align <b>every</b><br>"
+               "face &#8805; 64px, largest<br>first, capped at 8",
+    250, 428, 200, 92, BOX + GREY, parent=S)
+box("faceemb", "<b>the same frozen CLIP</b>, one batch<br>"
+               "f<sub>1</sub>, f<sub>2</sub>, &#8230; f<sub>N</sub> &#8212; each "
+               "<b>769-d</b><br>768 &#8853; standardised log&#8322;(face_px)",
+    480, 433, 215, 82, BOX + SOLID_GREY, parent=S)
+box("faceprobe", f"<b>face probe</b><br>z<sub>f,i</sub> = w&#183;f<sub>i</sub> + b<br>"
+                 f"<i>ONE probe, {f_n:,} numbers,</i><br><i>applied to each crop</i>",
+    725, 428, 195, 92, parent=S)
+box("facescores", f"<b>p<sub>face,1</sub>, p<sub>face,2</sub>, &#8230;, "
+                  f"p<sub>face,N</sub></b><br>&#963;(z<sub>f,i</sub> &#8722; "
+                  f"{shift:.4f})<br>one score per face",
+    950, 430, 200, 88, BOX + ORANGE, parent=S)
+box("facesig", "<b>p<sub>face</sub> = max(p<sub>face,1</sub> &#8230; "
+               "p<sub>face,N</sub>)</b><br><b>0.0</b> if N = 0",
+    1180, 435, 190, 78, BOX + ORANGE, parent=S)
 
 box("pred", "<b>pred = max(p, p<sub>face</sub>)</b>", 1350, 290, 210, 60,
     BOX + ORANGE, font=14, parent=S)
@@ -179,13 +183,18 @@ note("n_face", "<b>The only branch with DIFFERENT features, and the only one tha
                "specialists, an MLP head,<br>face-tampered, general-noise, "
                "modern-general. This one leaves the shared path at the PIXELS.<br>"
                "Absent &#8594; 0.0, never 0.5: a branch that did not fire must not be "
-               "able to raise a max().",
-     560, 525, 780, 75, parent=S)
+               "able to raise a max().<br>"
+               "<b>Every face is scored, not just the largest</b> &#8212; same "
+               "disjunctive argument, one level down. Capped at 8 because max over "
+               "N draws rises with N. Measured cost on 4,000 real images: FPR "
+               "<b>+0.00%</b>. 7.8.",
+     470, 528, 900, 88, parent=S)
 
 for a, b in [("img", "clip"), ("clip", "v"), ("v", "gen"), ("v", "tam"),
              ("gen", "zmax"), ("tam", "zmax"), ("zmax", "sig"), ("sig", "pred"),
              ("facedet", "faceemb"), ("faceemb", "faceprobe"),
-             ("faceprobe", "facesig"), ("facesig", "pred"),
+             ("faceprobe", "facescores"), ("facescores", "facesig"),
+             ("facesig", "pred"),
              ("pred", "verdict"), ("pred", "json")]:
     arrow(a, b)
 arrow("img", "facedet", "pixels, not the<br>shared embedding", EDGE + "dashed=1;")
