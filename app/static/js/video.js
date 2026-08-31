@@ -12,7 +12,11 @@
   var MAX_VIDEO_BYTES = 45 * 1024 * 1024;
   var RING_CIRCUMFERENCE = 2 * Math.PI * 38;
   var VIDEO_EXTENSIONS = ["mp4", "webm", "mov"];
-  var SINGLE_SIGNALS = ["General", "Tampered", "Regularity"];
+  var SINGLE_SIGNALS = [
+    { key: "general", label: "General" },
+    { key: "tampered", label: "Tampered" },
+    { key: "regularity", label: "Regularity" },
+  ];
   var VERDICT_LABELS = { likely_ai: "Likely AI", likely_real: "Likely real", uncertain: "Uncertain" };
 
   var selectedVideo = null;
@@ -120,14 +124,14 @@
 
   function renderSignals(signals) {
     signalList.innerHTML = "";
-    SINGLE_SIGNALS.forEach(function (key) {
-      var raw = (signals || {})[key];
+    SINGLE_SIGNALS.forEach(function (signal) {
+      var raw = (signals || {})[signal.key];
       var value = Number(raw);
       var li = document.createElement("li");
       li.className = "signal-row";
       var name = document.createElement("span");
       name.className = "signal-name";
-      name.textContent = key.replace(/_/g, " ");
+      name.textContent = signal.label;
       var track = document.createElement("div");
       track.className = "signal-track";
       var fill = document.createElement("span");
