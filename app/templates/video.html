@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quorum — AI Video Detector</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,480;9..144,600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true"></div>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><img class="logo" src="{{ url_for('static', filename='quorum-logo.png') }}" alt="" /></span>
+        <div><p class="brand-name">Quorum</p><p class="brand-tag">AI Video Detector</p></div>
+      </div>
+    </header>
+    <main class="shell">
+      <section id="video-upload-stage" class="stage is-active" aria-labelledby="video-upload-title">
+        <div class="intro">
+          <h1 id="video-upload-title">Detect AI-Generated Videos with <span class="confidence-highlight">Confidence</span></h1>
+          <p class="lede">Upload one video and Quorum will evaluate sampled frames as one result.</p>
+          <nav class="analysis-tabs" aria-label="Analysis type">
+            <a class="analysis-tab" href="{{ url_for('index') }}">Image</a>
+            <a class="analysis-tab is-active" href="{{ url_for('video') }}" aria-current="page">Video</a>
+          </nav>
+        </div>
+        <form id="video-upload-form" class="upload-card" novalidate>
+          <input id="video-input" class="sr-only" type="file" name="video" accept="video/mp4,video/webm,video/quicktime" />
+          <div id="video-dropzone" class="dropzone" role="button" tabindex="0" aria-controls="video-input" aria-label="Upload one video. Press Enter to browse, or drop a video here.">
+            <div class="dropzone-art video-dropzone-art" aria-hidden="true">▶</div>
+            <p class="dropzone-title">Drag one video here</p>
+            <p class="dropzone-hint">or click to browse · MP4, WebM, MOV · up to 45 MB</p>
+          </div>
+          <div id="video-preview-wrap" class="video-preview-wrap is-hidden">
+            <video id="video-preview" controls playsinline></video>
+            <div class="video-preview-meta"><strong id="video-filename"></strong><button type="button" id="video-clear-btn" class="text-btn">Remove</button></div>
+          </div>
+          <p id="video-form-error" class="form-error is-hidden" role="alert"></p>
+          <div class="actions"><button type="submit" id="video-analyze-btn" class="primary-btn" disabled>Analyze video</button></div>
+        </form>
+      </section>
+      <section id="video-loading-stage" class="stage" aria-live="polite" aria-labelledby="video-loading-title">
+        <div class="status-card"><div class="spinner" aria-hidden="true"></div><h2 id="video-loading-title">Reading the video</h2><p class="muted">Sampling frames and evaluating them…</p><div class="progress-track" aria-hidden="true"><span class="progress-fill"></span></div></div>
+      </section>
+      <section id="video-error-stage" class="stage" aria-labelledby="video-error-title">
+        <div class="status-card error-card"><h2 id="video-error-title">Something went wrong</h2><p id="video-error-copy" class="muted">The video analyzer could not finish.</p><button type="button" id="video-retry" class="primary-btn">Try again</button></div>
+      </section>
+      <section id="video-results-stage" class="stage" aria-labelledby="video-results-title">
+        <div class="results-toolbar"><div><p class="eyebrow">Analysis</p><h2 id="video-results-title">Video result</h2></div><button type="button" id="video-new-btn" class="ghost-btn">New video</button></div>
+        <article class="video-result-card">
+          <video id="result-video" controls playsinline></video>
+          <div class="result-body">
+            <div class="verdict-row"><div><p class="eyebrow">Verdict</p><p id="video-verdict-label" class="verdict-label">Uncertain</p></div><div class="confidence" aria-label="Confidence"><svg class="ring" viewBox="0 0 96 96" width="88" height="88"><circle class="ring-track" cx="48" cy="48" r="38" /><circle id="video-confidence-ring" class="ring-value" cx="48" cy="48" r="38" /></svg><div class="confidence-copy"><strong id="video-confidence-value">0%</strong></div></div></div>
+            <p id="video-explanation" class="explanation"></p>
+            <section class="signals"><div class="signals-head"><h3>Model signals</h3><p class="muted tiny">Each score is that model’s probability the video is AI-generated.</p></div><ul id="video-signal-list" class="signal-list"></ul></section>
+          </div>
+        </article>
+      </section>
+    </main>
+    <script src="{{ url_for('static', filename='js/video.js') }}"></script>
+  </body>
+</html>

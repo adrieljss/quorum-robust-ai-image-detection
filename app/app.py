@@ -40,6 +40,18 @@ def index():
     return render_template("index.html", demo_mode=DEMO_MODE)
 
 
+@app.route("/video")
+def video():
+    """Serve the single-video analysis interface."""
+    return render_template("video.html", demo_mode=DEMO_MODE)
+
+
+@app.route("/api/analyze-video", methods=["POST"])
+def analyze_video():
+    """Temporary contract endpoint; replace with the video pipeline."""
+    return jsonify({"error": "Video analysis has not been connected yet."}), 501
+
+
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
     """

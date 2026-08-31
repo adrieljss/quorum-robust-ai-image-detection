@@ -44,6 +44,10 @@
             Quorum uses four specialized machine learning models to analyze different aspects of an image, 
             providing an assessment of whether it is AI-generated or authentic, along with the reasoning behind the result.
           </p>
+          <nav class="analysis-tabs" aria-label="Analysis type">
+            <a class="analysis-tab is-active" href="{{ url_for('index') }}" aria-current="page">Image</a>
+            <a class="analysis-tab" href="{{ url_for('video') }}">Video</a>
+          </nav>
         </div>
 
         <form id="upload-form" class="upload-card" novalidate>
