@@ -92,10 +92,10 @@ array only when the aggregate verdict is `likely_ai`; it is an empty array for
 `likely_real` and `uncertain`. Each frame contains its video timeline position
 in `timestamp_seconds` plus the image-result-compatible fields shown above.
 
-`regions` is currently empty: the video pipeline uses `predict.py` directly,
-as required, and does not invoke the image-only region/OCR analyzer. A future
-video region detector can add standard `{type, bbox, score, verdict}` entries
-without changing the response shape.
+Face regions are emitted when the sampled frame's face branch runs. Each uses
+the standard `{type, bbox, score, verdict}` shape, with pixel coordinates in
+the decoded frame. Text regions are currently omitted because the video path
+does not run OCR on every sampled frame.
 
 ## Errors
 

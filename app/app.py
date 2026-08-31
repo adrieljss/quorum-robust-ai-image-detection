@@ -64,7 +64,9 @@ def analyze_video():
         return jsonify({"error": f"Empty video: {filename}"}), 400
 
     try:
-        return jsonify(video_analyzer.analyze_video(payload, filename))
+        response_payload = video_analyzer.analyze_video(payload, filename)
+        app.logger.info("Video analysis response for %s: %s", filename, response_payload)
+        return jsonify(response_payload)
     except ValueError as exc:
         return jsonify({"error": f"Could not analyze {filename}: {exc}"}), 400
     except Exception as exc:

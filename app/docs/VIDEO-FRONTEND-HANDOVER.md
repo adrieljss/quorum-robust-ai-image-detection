@@ -45,6 +45,14 @@ empty unless the aggregate `result.verdict` is `likely_ai`; when populated,
 each entry contains `timestamp_seconds` and a frame-level image-result-like
 record. See `VIDEO-BACKEND-HANDOVER.md` for its full schema.
 
+The results player plots every returned frame on a custom timeline marker:
+likely-AI frames are red and likely-real frames are green (uncertain frames
+are amber). When `frames` is non-empty, it is the source of truth for the
+results page: selecting a marker shows that sampled frame, its `regions`, and
+its `Timestamp m:ss` result in the right-side panel. The left pane becomes an
+annotated still frame with connector lines to the matching region cards. The
+aggregate `result` is used only if `frames` is empty.
+
 | Field | Type | Required | UI behavior |
 |---|---|---|---|
 | `result.filename` | string | recommended | available for future display; the UI uses the local filename now |
