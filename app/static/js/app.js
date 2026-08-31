@@ -46,6 +46,7 @@
 
   var SIGNAL_META = [
     { key: "general", label: "General" },
+    { key: "tampered", label: "Tampered" },
     { key: "face", label: "Face" },
     { key: "text", label: "Text" },
     { key: "regularity", label: "Regularity" },
@@ -78,12 +79,13 @@
   var resultImage = document.getElementById("result-image");
   var resultVisual = document.querySelector(".result-visual");
   var regionOverlay = document.getElementById("region-overlay");
+  var resultCard = document.getElementById("result-card");
+  var regionConnectors = document.getElementById("region-connectors");
   var resultFilename = document.getElementById("result-filename");
   var slideCounter = document.getElementById("slide-counter");
   var verdictLabel = document.getElementById("verdict-label");
   var confidenceValue = document.getElementById("confidence-value");
   var confidenceRing = document.getElementById("confidence-ring");
-  var explanation = document.getElementById("explanation");
   var metaChips = document.getElementById("meta-chips");
   var regionsPanel = document.getElementById("regions-panel");
   var regionList = document.getElementById("region-list");
@@ -224,7 +226,7 @@
     showStage(loadingStage);
     loadingCopy.textContent =
       selectedFiles.length === 1
-        ? "Asking the general, face, text, and regularity models…"
+        ? "Asking the general, tamper, face, text, and regularity models…"
         : "Analyzing " + selectedFiles.length + " images…";
 
     var formData = new FormData();
@@ -314,8 +316,8 @@
    * Paint the currently selected result onto the result card.
    *
    * Fields we SHOW:
-   *   verdict, confidence, explanation, reliability, content_type,
-   *   degradation_estimate, signals.{general,face,text,regularity}
+   *   verdict, confidence, reliability, content_type,
+   *   degradation_estimate, signals.{general,tampered,face,text,regularity}
    *
    * Fields we keep quiet unless they add a cue:
    *   provenance.c2pa / provenance.exif_software — only rendered as chips
@@ -336,6 +338,7 @@
       if (results[slideIndex] === item) {
         renderRegions(data.regions);
         renderRegionOverlays(data.regions);
+        requestAnimationFrame(renderRegionConnectors);
       }
     };
     resultImage.src = item.objectUrl;
@@ -346,6 +349,7 @@
     if (resultImage.complete && resultImage.naturalWidth) {
       renderRegions(data.regions);
       renderRegionOverlays(data.regions);
+      requestAnimationFrame(renderRegionConnectors);
     }
     resultFilename.textContent = data.filename || item.file.name;
     slideCounter.textContent = slideIndex + 1 + " / " + results.length;
@@ -374,13 +378,12 @@
       confidenceRing.style.stroke = "#d56a2b";
     }
 
-    explanation.textContent = data.explanation || "";
     renderChips(data);
     renderSignals(data.signals || {});
   }
 
   /**
-   * Small pills under the explanation. Intentionally not a dump of every field.
+   * Small pills beneath the model signals. Intentionally not a dump of every field.
    */
   function renderChips(data) {
     metaChips.innerHTML = "";
@@ -412,20 +415,21 @@
     metaChips.appendChild(span);
   }
 
-  /**
-   * Render the API's region entries as exact crops of the uploaded image.
-   * Bboxes are validated and clipped to the natural image bounds so an
-   * unexpected backend value cannot break the result card.
-   */
+  /** Render validated region results as compact signal squares. */
   function renderRegions(regions) {
     regionList.innerHTML = "";
     regionsPanel.classList.add("is-hidden");
     if (!Array.isArray(regions) || !regions.length) return;
     if (!resultImage.naturalWidth || !resultImage.naturalHeight) return;
 
-    regions.forEach(function (region) {
+    regions.forEach(function (region, index) {
       var crop = normaliseRegion(region && region.bbox);
       if (!crop) return;
+
+      var li = document.createElement("li");
+      var verdict = region.verdict || "uncertain";
+      li.className = "region-card is-" + verdict;
+      li.setAttribute("data-region-index", String(index));
 
       var canvas = document.createElement("canvas");
       canvas.width = crop.width;
@@ -442,13 +446,10 @@
         crop.width,
         crop.height
       );
-
-      var li = document.createElement("li");
-      li.className = "region-card";
       var image = document.createElement("img");
       image.className = "region-crop";
       image.src = canvas.toDataURL("image/png");
-      image.alt = (region.type || "Detected") + " region crop";
+      image.alt = "";
 
       var details = document.createElement("div");
       details.className = "region-details";
@@ -460,9 +461,7 @@
         ? "Score unavailable"
         : Math.round(Math.max(0, Math.min(1, score)) * 100) + "% AI";
       summary.textContent =
-        scoreLabel +
-        " · " +
-        (VERDICT_LABELS[region.verdict] || region.verdict || "Uncertain");
+        scoreLabel + " · " + (VERDICT_LABELS[verdict] || verdict);
       details.appendChild(title);
       details.appendChild(summary);
       li.appendChild(image);
@@ -517,12 +516,13 @@
     var baseTop =
       imageRect.top - visualRect.top + (imageRect.height - contentHeight) / 2;
 
-    regions.forEach(function (region) {
+    regions.forEach(function (region, index) {
       var crop = normaliseRegion(region && region.bbox);
       if (!crop) return;
       var verdict = region.verdict || "uncertain";
       var box = document.createElement("div");
       box.className = "region-box is-" + verdict;
+      box.setAttribute("data-region-index", String(index));
       box.style.left = baseLeft + crop.x * scale + "px";
       box.style.top = baseTop + crop.y * scale + "px";
       box.style.width = crop.width * scale + "px";
@@ -545,8 +545,36 @@
     });
   }
 
+  /** Draw a line from each detected image region to its result square. */
+  function renderRegionConnectors() {
+    regionConnectors.innerHTML = "";
+    if (!regionOverlay.children.length || !regionList.children.length) return;
+
+    var cardRect = resultCard.getBoundingClientRect();
+    regionConnectors.setAttribute(
+      "viewBox",
+      "0 0 " + cardRect.width + " " + cardRect.height
+    );
+
+    Array.prototype.forEach.call(regionOverlay.children, function (box) {
+      var index = box.getAttribute("data-region-index");
+      var target = regionList.querySelector('[data-region-index="' + index + '"]');
+      if (!target) return;
+
+      var boxRect = box.getBoundingClientRect();
+      var targetRect = target.getBoundingClientRect();
+      var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", boxRect.right - cardRect.left);
+      line.setAttribute("y1", boxRect.top + boxRect.height / 2 - cardRect.top);
+      line.setAttribute("x2", targetRect.left - cardRect.left);
+      line.setAttribute("y2", targetRect.top + targetRect.height / 2 - cardRect.top);
+      line.setAttribute("class", "region-connector " + box.className);
+      regionConnectors.appendChild(line);
+    });
+  }
+
   /**
-   * Four model bars. A missing / null signal is shown as "Not measured"
+   * Five model bars. A missing / null signal is shown as "Not measured"
    * rather than 0 — 0 would look like "the model said real".
    */
   function renderSignals(signals) {
@@ -573,7 +601,7 @@
       if (raw === null || raw === undefined || raw === "") {
         fill.classList.add("is-empty");
         value.textContent = "n/a";
-        value.title = "This branch did not run (for example, no face was found).";
+        value.title = "This model branch did not run.";
       } else {
         var n = Math.max(0, Math.min(1, Number(raw)));
         fill.style.width = Math.round(n * 100) + "%";
@@ -661,6 +689,7 @@
     var item = results[slideIndex];
     if (item && resultImage.naturalWidth) {
       renderRegionOverlays((item.data || {}).regions);
+      requestAnimationFrame(renderRegionConnectors);
     }
   });
 

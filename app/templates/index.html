@@ -98,7 +98,7 @@
         <div class="status-card">
           <div class="spinner" aria-hidden="true"></div>
           <h2 id="loading-title">Reading the image</h2>
-          <p id="loading-copy" class="muted">Asking the general, face, text, and regularity models…</p>
+          <p id="loading-copy" class="muted">Asking the general, tamper, face, text, and regularity models…</p>
           <div class="progress-track" aria-hidden="true">
             <span class="progress-fill"></span>
           </div>
@@ -156,18 +156,6 @@
                 </div>
               </div>
 
-              <p id="explanation" class="explanation"></p>
-
-              <div class="chips" id="meta-chips"></div>
-
-              <section id="regions-panel" class="regions-panel is-hidden" aria-labelledby="regions-title">
-                <div class="regions-head">
-                  <h3 id="regions-title">Detected regions</h3>
-                  <p class="muted tiny">Cropped areas that contributed to this result.</p>
-                </div>
-                <ul id="region-list" class="region-list"></ul>
-              </section>
-
               <div class="signals">
                 <div class="signals-head">
                   <h3>Model signals</h3>
@@ -175,7 +163,18 @@
                 </div>
                 <ul id="signal-list" class="signal-list"></ul>
               </div>
+
+              <div class="chips" id="meta-chips"></div>
+
+              <section id="regions-panel" class="regions-panel is-hidden" aria-labelledby="regions-title">
+                <div class="regions-head">
+                  <h3 id="regions-title">Detected regions</h3>
+                  <p class="muted tiny">Detected areas that contributed to this result.</p>
+                </div>
+                <ul id="region-list" class="region-list"></ul>
+              </section>
             </div>
+            <svg id="region-connectors" class="region-connectors" aria-hidden="true"></svg>
           </article>
 
           <button type="button" id="next-btn" class="nav-btn" aria-label="Next image">
