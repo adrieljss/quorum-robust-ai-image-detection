@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 import predict  # noqa: E402
 from quorum.embed import BACKBONE  # noqa: E402
+from quorum.features import MAX_FACES, MIN_FACE  # noqa: E402
 
 OUT = ROOT / "docs" / "figures" / "system.drawio"
 
@@ -86,10 +87,12 @@ box("clip", f"&#10052;&#65039; <b>CLIP {BACKBONE}</b><br>304M params &#183; fp16
     225, 140, 205, 88, BOX + FROZEN)
 box("v", "<b>v</b><br>768-d", 470, 154, 85, 60, BOX + GREY)
 
-box("facedet", "&#10052;&#65039; <b>face_crop()</b><br>YuNet, on the PIXELS",
-    225, 300, 205, 60, BOX + FROZEN)
-box("fvec", "<b>f</b> = [CLIP(crop), log&#8322;px]<br><b>769-d</b>",
-    470, 296, 185, 68, BOX + GREY)
+box("facedet", "&#10052;&#65039; <b>face_crops()</b><br>YuNet, on the PIXELS<br>"
+               f"<b>every</b> face &#8805; {MIN_FACE}px, capped at {MAX_FACES}",
+    225, 296, 205, 72, BOX + FROZEN)
+box("fvec", "<b>f</b><sub>1</sub> &#8230; <b>f</b><sub>N</sub><br>"
+            "each [CLIP(crop), log&#8322;px]<br><b>769-d</b>",
+    465, 296, 175, 72, BOX + GREY)
 
 # --- the three branches that ARE the score -------------------------------
 box("gen", f"&#128293; <b>general</b><br>z<sub>g</sub> = w&#183;v + b<br>"
@@ -98,9 +101,12 @@ box("gen", f"&#128293; <b>general</b><br>z<sub>g</sub> = w&#183;v + b<br>"
 box("tam", f"&#128293; <b>tampered</b><br>z<sub>t</sub> = {alpha}(w&#183;v + b)"
            f"<br>{t:,} params",
     600, 186, 180, 74)
-box("face", f"&#128293; <b>face</b><br>z<sub>f</sub> = w&#183;f + b<br>"
-            f"{f:,} params",
-    700, 296, 180, 74)
+box("face", f"&#128293; <b>face</b><br>z<sub>f,i</sub> = w&#183;f<sub>i</sub> + b"
+            f"<br>{f:,} params, <i>one probe</i>",
+    675, 296, 185, 72)
+box("facemax", "<b>p<sub>face</sub> = max<sub>i</sub> &#963;(z<sub>f,i</sub> "
+               "&#8722; shift)</b><br><b>0</b> if no face",
+    895, 296, 200, 72, BOX + ORANGE, font=12)
 
 box("zmax", "<b>z = max(z<sub>g</sub>, z<sub>t</sub>)</b>", 830, 92, 175, 48,
     BOX + ORANGE)
@@ -117,38 +123,49 @@ txt("n_max", "<b>max(), not a vote.</b> Any ONE branch firing is enough &#8212; 
              "the task is disjunctive:<br>an image is AI-touched if it is fully "
              "synthetic <b>or</b> locally edited.",
     830, 218, 430, 40)
-txt("n_face", "the only branch built on <b>different features</b><br>"
-              "(769-d, not the shared 768-d)",
-    895, 376, 270, 32)
+txt("n_face", "The only branch on <b>different features</b> (769-d, not the "
+              "shared 768-d) &#8212; and the only one<br>that ever earned a place "
+              "in max(). Every face is scored: if <b>any</b> face is synthetic, "
+              "the image is.",
+    465, 378, 700, 36)
 
 for a, b in [("upload", "clip"), ("clip", "v"), ("v", "gen"), ("v", "tam"),
              ("gen", "zmax"), ("tam", "zmax"), ("zmax", "sig"), ("sig", "pred"),
-             ("facedet", "fvec"), ("fvec", "face"), ("face", "pred"),
+             ("facedet", "fvec"), ("fvec", "face"), ("face", "facemax"),
+             ("facemax", "pred"),
              ("pred", "verdict")]:
     arrow(a, b)
 arrow("upload", "facedet", "pixels", EDGE + "dashed=1;")
 arrow("clip", "fvec", "same frozen CLIP,<br>on the crop", EDGE + "dashed=1;")
 
 # --- built, shown, not scored --------------------------------------------
-box("shown", "<b>BUILT AND SHOWN IN THE DEMO &#8212; never enters pred</b>",
-    40, 442, 700, 28,
+box("shown", "<b>BUILT AND SHOWN IN THE DEMO</b> &#8212; read the same input in parallel, never enter <b>pred</b>",
+    40, 442, 900, 28,
     "text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;"
     "fontColor=#9673a6;", font=13)
-box("spec", f"&#128293; <b>spectral</b><br>8 FFT features &#183; {spec} params"
+box("spec", f"&#128293; <b>spectral</b> &#8212; from the PIXELS<br>"
+            f"8 FFT features &#183; {spec} params"
             "<br>0.6736 clean / 0.5471 worst",
     40, 478, 225, 74, BOX + PURPLE, font=12)
-box("txtb", f"&#128293; <b>text</b><br>CLIP on an OCR crop &#183; {text} params"
-            "<br>transfers 0.8083, worth +0.0022",
+box("txtb", f"&#128293; <b>text</b> &#8212; OCR, then CLIP on the crop<br>"
+            f"{text} params &#183; transfers 0.8083"
+            "<br>worth +0.0022 in the scorer",
     285, 478, 245, 74, BOX + PURPLE, font=12)
-box("prov", "<b>provenance</b><br>C2PA / EXIF / XMP<br>"
-            "<i>evidence, not inference</i>",
+box("prov", "<b>provenance</b> &#8212; from the FILE<br>C2PA / EXIF / XMP, read "
+            "BEFORE<br>normalise() strips it. <i>Not a model.</i>",
     550, 478, 195, 74, BOX + PURPLE, font=12)
-box("ui", "<b>content type &#183; reliability</b><br>face box &#183; "
-          "per-branch scores",
+box("ui", "<b>content type</b> (reuses <b>v</b>) &#183; <b>reliability</b><br>"
+          "face box &#183; per-branch scores<br><i>these do come downstream</i>",
     765, 478, 215, 74, BOX + PURPLE, font=12)
 
-for e in ("spec", "txtb", "prov", "ui"):
-    arrow("verdict", e, "", SOFT)
+# spectral, text and provenance read the INPUT, not the verdict -- drawing
+# them off the verdict would say the score feeds them, which is backwards.
+# Only the UI block is genuinely downstream (content type reuses v, reliability
+# is computed from the branch scores).
+for e in ("spec", "txtb", "prov"):
+    arrow("upload", e, "", SOFT)
+arrow("v", "ui", "", SOFT)
+arrow("pred", "ui", "", SOFT)
 
 # --- measured and rejected ------------------------------------------------
 box("cut", "<b>BUILT, MEASURED, REJECTED</b>", 1010, 442, 480, 28,

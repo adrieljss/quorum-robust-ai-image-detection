@@ -19,11 +19,11 @@
         <mxCell id="v" value="&lt;b&gt;v&lt;/b&gt;&lt;br&gt;768-d" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f5f5f5;strokeColor=#999999;fontSize=13;" vertex="1" parent="1">
           <mxGeometry x="470" y="154" width="85" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="facedet" value="&amp;#10052;&amp;#65039; &lt;b&gt;face_crop()&lt;/b&gt;&lt;br&gt;YuNet, on the PIXELS" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#eaf2fb;strokeColor=#6c8ebf;dashed=1;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="225" y="300" width="205" height="60" as="geometry" />
+        <mxCell id="facedet" value="&amp;#10052;&amp;#65039; &lt;b&gt;face_crops()&lt;/b&gt;&lt;br&gt;YuNet, on the PIXELS&lt;br&gt;&lt;b&gt;every&lt;/b&gt; face &amp;#8805; 64px, capped at 8" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#eaf2fb;strokeColor=#6c8ebf;dashed=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="225" y="296" width="205" height="72" as="geometry" />
         </mxCell>
-        <mxCell id="fvec" value="&lt;b&gt;f&lt;/b&gt; = [CLIP(crop), log&amp;#8322;px]&lt;br&gt;&lt;b&gt;769-d&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f5f5f5;strokeColor=#999999;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="470" y="296" width="185" height="68" as="geometry" />
+        <mxCell id="fvec" value="&lt;b&gt;f&lt;/b&gt;&lt;sub&gt;1&lt;/sub&gt; &amp;#8230; &lt;b&gt;f&lt;/b&gt;&lt;sub&gt;N&lt;/sub&gt;&lt;br&gt;each [CLIP(crop), log&amp;#8322;px]&lt;br&gt;&lt;b&gt;769-d&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f5f5f5;strokeColor=#999999;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="465" y="296" width="175" height="72" as="geometry" />
         </mxCell>
         <mxCell id="gen" value="&amp;#128293; &lt;b&gt;general&lt;/b&gt;&lt;br&gt;z&lt;sub&gt;g&lt;/sub&gt; = w&amp;#183;v + b&lt;br&gt;769 params" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
           <mxGeometry x="600" y="92" width="180" height="74" as="geometry" />
@@ -31,8 +31,11 @@
         <mxCell id="tam" value="&amp;#128293; &lt;b&gt;tampered&lt;/b&gt;&lt;br&gt;z&lt;sub&gt;t&lt;/sub&gt; = 1.25(w&amp;#183;v + b)&lt;br&gt;769 params" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
           <mxGeometry x="600" y="186" width="180" height="74" as="geometry" />
         </mxCell>
-        <mxCell id="face" value="&amp;#128293; &lt;b&gt;face&lt;/b&gt;&lt;br&gt;z&lt;sub&gt;f&lt;/sub&gt; = w&amp;#183;f + b&lt;br&gt;772 params" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="700" y="296" width="180" height="74" as="geometry" />
+        <mxCell id="face" value="&amp;#128293; &lt;b&gt;face&lt;/b&gt;&lt;br&gt;z&lt;sub&gt;f,i&lt;/sub&gt; = w&amp;#183;f&lt;sub&gt;i&lt;/sub&gt; + b&lt;br&gt;772 params, &lt;i&gt;one probe&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="675" y="296" width="185" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="facemax" value="&lt;b&gt;p&lt;sub&gt;face&lt;/sub&gt; = max&lt;sub&gt;i&lt;/sub&gt; &amp;#963;(z&lt;sub&gt;f,i&lt;/sub&gt; &amp;#8722; shift)&lt;/b&gt;&lt;br&gt;&lt;b&gt;0&lt;/b&gt; if no face" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="895" y="296" width="200" height="72" as="geometry" />
         </mxCell>
         <mxCell id="zmax" value="&lt;b&gt;z = max(z&lt;sub&gt;g&lt;/sub&gt;, z&lt;sub&gt;t&lt;/sub&gt;)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" vertex="1" parent="1">
           <mxGeometry x="830" y="92" width="175" height="48" as="geometry" />
@@ -49,22 +52,22 @@
         <mxCell id="n_max" value="&lt;b&gt;max(), not a vote.&lt;/b&gt; Any ONE branch firing is enough &amp;#8212; the task is disjunctive:&lt;br&gt;an image is AI-touched if it is fully synthetic &lt;b&gt;or&lt;/b&gt; locally edited." style="text;html=1;whiteSpace=wrap;verticalAlign=middle;fontSize=11;align=left;" vertex="1" parent="1">
           <mxGeometry x="830" y="218" width="430" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="n_face" value="the only branch built on &lt;b&gt;different features&lt;/b&gt;&lt;br&gt;(769-d, not the shared 768-d)" style="text;html=1;whiteSpace=wrap;verticalAlign=middle;fontSize=11;align=left;" vertex="1" parent="1">
-          <mxGeometry x="895" y="376" width="270" height="32" as="geometry" />
+        <mxCell id="n_face" value="The only branch on &lt;b&gt;different features&lt;/b&gt; (769-d, not the shared 768-d) &amp;#8212; and the only one&lt;br&gt;that ever earned a place in max(). Every face is scored: if &lt;b&gt;any&lt;/b&gt; face is synthetic, the image is." style="text;html=1;whiteSpace=wrap;verticalAlign=middle;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="465" y="378" width="700" height="36" as="geometry" />
         </mxCell>
-        <mxCell id="shown" value="&lt;b&gt;BUILT AND SHOWN IN THE DEMO &amp;#8212; never enters pred&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontColor=#9673a6;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="40" y="442" width="700" height="28" as="geometry" />
+        <mxCell id="shown" value="&lt;b&gt;BUILT AND SHOWN IN THE DEMO&lt;/b&gt; &amp;#8212; read the same input in parallel, never enter &lt;b&gt;pred&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="442" width="900" height="28" as="geometry" />
         </mxCell>
-        <mxCell id="spec" value="&amp;#128293; &lt;b&gt;spectral&lt;/b&gt;&lt;br&gt;8 FFT features &amp;#183; 9 params&lt;br&gt;0.6736 clean / 0.5471 worst" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="spec" value="&amp;#128293; &lt;b&gt;spectral&lt;/b&gt; &amp;#8212; from the PIXELS&lt;br&gt;8 FFT features &amp;#183; 9 params&lt;br&gt;0.6736 clean / 0.5471 worst" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="40" y="478" width="225" height="74" as="geometry" />
         </mxCell>
-        <mxCell id="txtb" value="&amp;#128293; &lt;b&gt;text&lt;/b&gt;&lt;br&gt;CLIP on an OCR crop &amp;#183; 772 params&lt;br&gt;transfers 0.8083, worth +0.0022" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="txtb" value="&amp;#128293; &lt;b&gt;text&lt;/b&gt; &amp;#8212; OCR, then CLIP on the crop&lt;br&gt;772 params &amp;#183; transfers 0.8083&lt;br&gt;worth +0.0022 in the scorer" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="285" y="478" width="245" height="74" as="geometry" />
         </mxCell>
-        <mxCell id="prov" value="&lt;b&gt;provenance&lt;/b&gt;&lt;br&gt;C2PA / EXIF / XMP&lt;br&gt;&lt;i&gt;evidence, not inference&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="prov" value="&lt;b&gt;provenance&lt;/b&gt; &amp;#8212; from the FILE&lt;br&gt;C2PA / EXIF / XMP, read BEFORE&lt;br&gt;normalise() strips it. &lt;i&gt;Not a model.&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="550" y="478" width="195" height="74" as="geometry" />
         </mxCell>
-        <mxCell id="ui" value="&lt;b&gt;content type &amp;#183; reliability&lt;/b&gt;&lt;br&gt;face box &amp;#183; per-branch scores" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="ui" value="&lt;b&gt;content type&lt;/b&gt; (reuses &lt;b&gt;v&lt;/b&gt;) &amp;#183; &lt;b&gt;reliability&lt;/b&gt;&lt;br&gt;face box &amp;#183; per-branch scores&lt;br&gt;&lt;i&gt;these do come downstream&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="765" y="478" width="215" height="74" as="geometry" />
         </mxCell>
         <mxCell id="cut" value="&lt;b&gt;BUILT, MEASURED, REJECTED&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontColor=#b85450;fontSize=13;" vertex="1" parent="1">
@@ -109,28 +112,34 @@
         <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="fvec" target="face">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="face" target="pred">
+        <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="face" target="facemax">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="pred" target="verdict">
+        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="facemax" target="pred">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e12" value="pixels" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;" edge="1" parent="1" source="upload" target="facedet">
+        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="pred" target="verdict">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e13" value="same frozen CLIP,&lt;br&gt;on the crop" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;" edge="1" parent="1" source="clip" target="fvec">
+        <mxCell id="e13" value="pixels" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;" edge="1" parent="1" source="upload" target="facedet">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="spec">
+        <mxCell id="e14" value="same frozen CLIP,&lt;br&gt;on the crop" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;" edge="1" parent="1" source="clip" target="fvec">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="txtb">
+        <mxCell id="e15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="upload" target="spec">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="prov">
+        <mxCell id="e16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="upload" target="txtb">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="ui">
+        <mxCell id="e17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="upload" target="prov">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="v" target="ui">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="pred" target="ui">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
