@@ -420,6 +420,28 @@ Feeds Innovation & Problem Insight at 20%. Not an afterthought.
       unseen; training on GPT-image-2 retires that. Should have been a gate
       criterion, not a footnote
 
+### Provenance — SHIPPED 31 Aug, as a side channel
+
+- [x] `quorum/provenance.py` — C2PA (JUMBF/caBX/RIFF, all three containers),
+      EXIF, XMP and PNG text chunks, read off the ORIGINAL bytes. Container
+      parsers rather than a `b"c2pa"` byte scan, so a prompt that merely mentions
+      C2PA cannot fire it. Self-check: 11 asserts, including that `normalise()`
+      destroys the signal — the fact the whole design rests on
+- [x] `predict.py --provenance`; default output stays `{image_path, pred}`
+- [x] Wired into `app/analyzer.py`; `provenance.c2pa` is no longer always null,
+      and the local `_exif_software()` copy is deleted in favour of the module
+- [x] **It is NOT in `pred` and must not be.** Three reasons in
+      `ERROR_ANALYSIS.md` §7.9: it cannot be measured (every eval row is
+      post-`normalise()`, so it is null for 100% of them), its recall is ~0 on
+      platform-processed images, and it is trivially forged
+- [x] Measured on `test-images/`: all 7 GPT-image-2 files carry a signed C2PA
+      manifest asserting `trainedAlgorithmicMedia`, and the pixel model misses
+      **4 of those 7**. The 4 open-weights Janus-Pro files declare nothing —
+      the signal finds policy-compliant commercial generators, not AI
+- [ ] If time: validate the C2PA signature rather than reading strings out of
+      the CBOR. Needs the `c2pa` library and a trust list; until then every
+      finding is labelled an unvalidated claim
+
 ### Open, found 31 Aug — the figures and threshold script are FACE-BLIND
 
 - [ ] **Wire the `face_*` caches into `make_figures.py` and `pick_threshold.py`.**

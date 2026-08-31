@@ -13,11 +13,15 @@ Notes worth keeping in mind:
     max() on So-Fake-OOD -- don't swap this back without re-checking those
     numbers. fusion.npz is still used here, just for its Platt calibration,
     not its verdict.
-  - signals.text, degradation_estimate, provenance.c2pa are always None --
-    no trained, saved model behind any of them (text branch has two
-    experimental attempts in quorum/detectors/text.py, neither with a
-    saved .npz; degradation head never persisted; provenance.py unbuilt,
-    see TODO.md). A number here would be fabricated, not measured.
+  - signals.text and degradation_estimate are always None -- no trained,
+    saved model behind either (text branch has two experimental attempts in
+    quorum/detectors/text.py, neither with a saved .npz; degradation head
+    never persisted). A number here would be fabricated, not measured.
+  - provenance IS built now (quorum/provenance.py) and reads C2PA, EXIF, XMP
+    and PNG text chunks off the ORIGINAL upload bytes. It never touches
+    confidence: it cannot be measured on any eval set we have, because
+    normalise() strips exactly what it reads. Read that module's docstring
+    before wiring declares_ai into a score.
   - signals.regularity is always None for a different reason: the spectral
     branch (quorum/detectors/spectral.py) DOES exist and IS measured, but
     its own file says it must not enter the combiner -- 0.6736 clean AUC,
@@ -53,7 +57,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
-from PIL import Image, ExifTags
+from PIL import Image
 
 # app.py runs from ./app; make the parent repo (quorum/, predict.py, data/)
 # importable regardless of cwd.
@@ -174,24 +178,6 @@ def _face_bbox(img: Image.Image) -> Optional[dict]:
     }
 
 
-def _exif_software(payload: bytes) -> Optional[str]:
-    """EXIF 'Software' tag from the ORIGINAL bytes -- must run before
-    normalise() re-encodes and strips it. Absence proves nothing (most
-    platforms strip EXIF); this is a positive-only signal."""
-    try:
-        img = Image.open(io.BytesIO(payload))
-        exif = img.getexif()
-        if not exif:
-            return None
-        for tag_id, value in exif.items():
-            if ExifTags.TAGS.get(tag_id) == "Software" and value:
-                text = str(value).strip()
-                return text or None
-    except Exception:
-        pass
-    return None
-
-
 def _content_type(general_vec: np.ndarray) -> str:
     """CLIP zero-shot label, reusing the embedding already computed."""
     from quorum.fusion import CONTENT, content_onehot
@@ -248,7 +234,10 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     except Exception:
         raise ValueError(f"not a valid image file: {filename}" if filename else "not a valid image file")
 
-    exif_software = _exif_software(payload)  # before normalise() strips EXIF
+    from quorum import provenance as prov
+    # On the ORIGINAL bytes: normalise() below re-encodes and strips
+    # every field this reads.
+    prov_report = prov.inspect(payload)
 
     img = normalise(raw_img)  # same JPEG q95 round-trip every probe trained on
     face_img, face_px = face_crop(img)
@@ -297,8 +286,16 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
         "verdict": verdict,
         "confidence": round(confidence, 4),
         "provenance": {
-            "c2pa": None,  # provenance.py unbuilt -- see module docstring
-            "exif_software": exif_software,
+            # Contract keys (FRONTEND-HANDOVER section 2): string or null, and
+            # the UI shows a chip only when non-null.
+            "c2pa": prov_report["c2pa"],
+            "exif_software": prov_report["exif_software"],
+            # Extra, ignored by the current UI and one line from being shown.
+            # declares_ai is deliberately NOT folded into confidence -- see the
+            # three reasons in quorum/provenance.py's docstring.
+            "declares_ai": prov_report["declares_ai"],
+            "summary": prov_report["summary"],
+            "fields": prov_report["fields"],
         },
         "signals": {
             "general": round(general_cal, 4),

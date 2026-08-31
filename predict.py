@@ -328,6 +328,21 @@ def main(a):
                 print(f"  variants {rec['image_path']}")
     else:
         preds = to_records(paths, got)
+    if a.provenance:
+        # Reads the FILE, not the pixels, and deliberately does not touch `pred`.
+        # quorum/provenance.py's docstring has the three reasons; the short one
+        # is that normalise() strips this, so no eval set we own can measure it.
+        from quorum import provenance
+        hits = 0
+        for rec, path in zip(preds, paths):
+            r = provenance.inspect(path)
+            if r["verdict"] == "none":
+                continue
+            hits += r["declares_ai"]
+            rec["provenance"] = {k: r[k] for k in
+                                 ("verdict", "declares_ai", "summary", "fields")}
+        print(f"  provenance: {hits}/{len(paths)} files declare AI in their "
+              f"metadata (absence proves nothing -- platforms strip it)")
     Path(a.output).write_text(json.dumps(preds, indent=2))
     print(f"{len(preds)} predictions -> {a.output}")
 
@@ -453,6 +468,11 @@ if __name__ == "__main__":
                         "generated in memory and never written to disk, and add "
                         "a `verdict` field. NOT the required output schema -- the "
                         "default stays {image_path, pred}.")
+    p.add_argument("--provenance", action="store_true",
+                   help="also report C2PA / EXIF / XMP / PNG-text residues that "
+                        "declare how the file was made. Evidence, not inference: "
+                        "it NEVER changes `pred`, because normalise() strips it "
+                        "and so no eval set can measure it. Positive-only.")
     p.add_argument("--self-check", action="store_true",
                    help="contract + scoring checks, no cache and no GPU")
     a = p.parse_args()

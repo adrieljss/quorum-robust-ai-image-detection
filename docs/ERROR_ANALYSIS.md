@@ -753,6 +753,55 @@ Reproduce: `scratchpad/face_max.py`, `face_grid.py`.
 
 ---
 
+### 7.9 The one signal that is evidence rather than inference, and why it is still not in the score
+
+`quorum/provenance.py` reads what the FILE declares about itself — C2PA
+manifests, EXIF, XMP, PNG text chunks — and never looks at a pixel. On our own
+`test-images/` set:
+
+```
+                            n   metadata declares AI   pixel model catches
+GPT-image-2 (OpenAI API)    7           7/7                   3/7
+Janus-Pro-7B (open weights) 4           0/4                   4/4
+real photographs            5           0/5                   5/5  (no FPs)
+```
+
+**All seven GPT-image-2 files carry a signed C2PA manifest** asserting IPTC
+`digitalSourceType = trainedAlgorithmicMedia` — the generator declaring its own
+output — and the pixel model misses **four of those seven** (0.3364, 0.2322,
+0.0724, 0.4242 against a 0.5 cut). That is section 3's worst generator, and the
+metadata catches every one of them.
+
+It is still not in `pred`, for three reasons that are worth more than the 7/7:
+
+1. **It cannot be measured here.** Every number in this document comes from
+   cached CLIP embeddings of images that passed through `normalise()` — a JPEG
+   q95 round-trip that strips metadata by construction — and all 14 degradations
+   re-encode on top. On So-Fake-OOD, on the organizer set, on every eval we own,
+   provenance is null for **100% of rows**, real and AI alike. There is no
+   held-out set on which its contribution could be estimated, so wiring it in
+   would be the first unmeasured change to `max()` this project has made.
+   `provenance.py`'s self-check asserts this destruction, so the claim cannot
+   quietly stop being true.
+2. **The 7/7 is a best case that does not generalise.** Those files came straight
+   from an API and have never been through a platform. Every major platform
+   strips metadata on upload, which is exactly the population this detector
+   exists for. What the table really shows is that the signal detects
+   *policy-compliant commercial generators* — Janus-Pro, an open-weights model
+   anyone can run locally, declares nothing, and is trivially the case an
+   adversary would use.
+3. **It is trivially forged.** Writing `Software: DALL-E` into a real photograph
+   is one exiftool call. A C2PA signature would resist that, but validating it
+   needs the `c2pa` library and a trust list we do not ship, so everything we
+   report is labelled an **unvalidated claim**.
+
+So it ships as a side channel: `predict.py --provenance` adds a `provenance`
+key per record and the default `{image_path, pred}` output is untouched; the
+demo shows it as a chip. Positive-only, and absence is reported as *no evidence*
+rather than as evidence of a real photograph.
+
+---
+
 ## 8. What we tried that did not work
 
 Negative results, kept because they are the evidence that the shipped design is
