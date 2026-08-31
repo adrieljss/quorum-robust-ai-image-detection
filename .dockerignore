@@ -33,3 +33,6 @@ preds.json
 *.json.tmp
 Dockerfile
 .dockerignore
+
+# Poster thumbnails: licensed corpora, and a Space is public.
+poster-samples/

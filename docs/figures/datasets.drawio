@@ -1,0 +1,127 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Quorum data">
+    <mxGraphModel dx="1600" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="&lt;b&gt;Quorum &amp;#8212; data, training and evaluation&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:13px;color:#666666'&gt;every image is scored under all 15 degradation settings &amp;#183; nothing evaluated was trained on&lt;/font&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontSize=21;" vertex="1" parent="1">
+          <mxGeometry x="40" y="18" width="780" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="h_train" value="&lt;b&gt;TRAINING DATA&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="sid" value="&lt;b&gt;SID_Set&lt;/b&gt; &amp;#183; train&lt;br&gt;16,000 images &amp;#183; 8,000 real / 8,000 AI&lt;br&gt;&lt;font style='font-size:10px'&gt;~19.4 GB raw &amp;#8594; 246 MB cached &amp;#183; 64,000 rows&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="128" width="205" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="sidtamp" value="&lt;b&gt;SID_Set tampered&lt;/b&gt;&lt;br&gt;3,949 AI-inpainted real photos&lt;br&gt;&lt;font style='font-size:10px'&gt;~4.8 GB raw &amp;#8594; 55 MB cached &amp;#183; 15,796 rows&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="218" width="205" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="mj" value="&lt;b&gt;WildFake Midjourney&lt;/b&gt;&lt;br&gt;1,500 images &amp;#183; all AI&lt;br&gt;&lt;font style='font-size:10px'&gt;2.3 GB raw &amp;#8594; 18 MB cached &amp;#183; 6,000 rows&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="308" width="205" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="coco" value="&lt;b&gt;COCO train2017&lt;/b&gt;&lt;br&gt;5,000 real photos &amp;#183; &lt;font style='font-size:10px'&gt;818 MB raw &amp;#8594; 61 MB cached &amp;#183; 20,000 rows&lt;/font&gt;&lt;br&gt;&lt;i&gt;tried as negatives, reverted&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f5f5f5;strokeColor=#999999;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="386" width="205" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="grid" value="&lt;b&gt;Degradation grid&lt;/b&gt; &amp;#8212; 15 settings&lt;br&gt;clean + jpeg(4) &amp;#183; blur(3) &amp;#183; resize(2) &amp;#183; noise(3) &amp;#183; jitter(1) &amp;#183; crop(1)&lt;br&gt;&lt;br&gt;&lt;b&gt;TRAIN: clean + 3 RANDOM per image&lt;/b&gt;&lt;br&gt;seeded on image_id, so a rerun reproduces it. Every setting appears across the source (~3,400x in SID_Set), no single image sees them all.&lt;br&gt;&lt;br&gt;&lt;b&gt;EVAL: all 15, every image&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="272" y="150" width="268" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="n_keep" value="&lt;b&gt;KEEP&lt;/b&gt; = clean, jpeg50, blur10, noise005 is a different thing: a training-time filter on ADDED sources only, so a source with a different variant density&lt;br&gt;cannot outvote SID_Set. Midjourney keeps 1.6 rows/image through it, calib_ood 4.0. SID_Set itself is not filtered &amp;#8212; it uses all 4 of its sampled rows." style="text;html=1;whiteSpace=wrap;verticalAlign=middle;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="458" width="920" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="h_branch" value="&lt;b&gt;WHAT EACH BRANCH TRAINS ON&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontColor=#9673a6;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="590" y="100" width="400" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="b_gen" value="&lt;b&gt;general&lt;/b&gt;&lt;br&gt;SID_Set + Midjourney + 4 of 5 calib families&lt;br&gt;&lt;i&gt;real vs AI&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="590" y="132" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="b_tam" value="&lt;b&gt;tampered&lt;/b&gt;&lt;br&gt;SID_Set reals vs SID_Set tampered&lt;br&gt;&lt;i&gt;never sees a fully synthetic image&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="590" y="218" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="b_face" value="&lt;b&gt;face&lt;/b&gt;&lt;br&gt;face crops from SID_Set&lt;br&gt;&lt;i&gt;one probe, 769-d&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="590" y="304" width="250" height="62" as="geometry" />
+        </mxCell>
+        <mxCell id="b_disp" value="&lt;b&gt;spectral&lt;/b&gt; &amp;#183; &lt;b&gt;text&lt;/b&gt;&lt;br&gt;SID_Set (FFT / OCR crops)&lt;br&gt;&lt;i&gt;display only, not in pred&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f5f5f5;strokeColor=#999999;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="590" y="380" width="250" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="h_cal" value="&lt;b&gt;THE ONE HELD-OUT SET WE ARE ALLOWED TO FIT ON&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontColor=#d79b00;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="506" width="700" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="calib" value="&lt;b&gt;So-Fake-OOD &amp;#183; calib_ood&lt;/b&gt;&lt;br&gt;2,044 images &amp;#183; 976 real / 1,068 AI&lt;br&gt;5 generator families:&lt;br&gt;FLUX_2, Flux.1_pro, Ideogram2, Ideogram3, Recraftv3" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="538" width="260" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="rot" value="&lt;b&gt;5-fold rotation&lt;/b&gt;&lt;br&gt;train on 4 families, calibrate&lt;br&gt;on the 5th, rotate, average the&lt;br&gt;5 calibrated weight vectors" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="340" y="538" width="250" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="n_cal" value="Split by &lt;b&gt;family&lt;/b&gt;, not by generator: Ideogram2 and Ideogram3 on opposite sides would call a sibling model &amp;#8220;unseen&amp;#8221;. Reals carry no generator,&lt;br&gt;so they fold by &lt;b&gt;image&lt;/b&gt; instead &amp;#8212; otherwise one photo lands in train and calibration at once. Platt is folded into the weights, so nothing extra ships." style="text;html=1;whiteSpace=wrap;verticalAlign=middle;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="640" width="900" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="h_eval" value="&lt;b&gt;EVALUATION &amp;#8212; never trained on&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="990" y="100" width="460" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ood" value="&amp;#127942; &lt;b&gt;So-Fake-OOD&lt;/b&gt; &amp;#183; test_ood &amp;#8212; HEADLINE&lt;br&gt;4,198 images &amp;#183; 2,096 real / 2,102 AI&lt;br&gt;&lt;b&gt;10 generator families, none in training&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="132" width="300" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="e_org" value="&amp;#128274; &lt;b&gt;Organizer set&lt;/b&gt; &amp;#183; test_organizer&lt;br&gt;8,719 images &amp;#8212; COCO val2017 + WildFake DALL&amp;#183;E&lt;br&gt;&lt;font style='font-size:10px'&gt;2.7 GB raw &amp;#8594; 441 MB cached &amp;#183; 130,785 rows&lt;/font&gt;&lt;br&gt;&lt;b&gt;the brief forbids training on this&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="214" width="310" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="e_tamp" value="&lt;b&gt;SID_Set tampered&lt;/b&gt; &amp;#183; eval&lt;br&gt;1,499 edited photos, same corpus as training&lt;br&gt;&lt;font style='font-size:10px'&gt;~1.8 GB raw &amp;#8594; 79 MB cached &amp;#183; 22,485 rows&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="306" width="310" height="68" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ftamp" value="&lt;b&gt;So-Fake tampered&lt;/b&gt; &amp;#183; FOREIGN edits&lt;br&gt;3,000 images &amp;#8212; a different corpus&lt;br&gt;&lt;font style='font-size:10px'&gt;~8.0 GB raw &amp;#8594; 138 MB cached &amp;#183; 45,000 rows&lt;/font&gt;&lt;br&gt;&lt;i&gt;the honest cross-corpus number&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="384" width="310" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="e_laion" value="&lt;b&gt;LAION real holdout&lt;/b&gt;&lt;br&gt;2,000 real web photos, corpus-disjoint&lt;br&gt;&lt;font style='font-size:10px'&gt;195 MB raw &amp;#8594; 92 MB cached &amp;#183; 30,000 rows&lt;/font&gt;&lt;br&gt;&lt;i&gt;false positives on unfamiliar reals&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="470" width="310" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="n_eval" value="&amp;#127942; the number we quote &amp;#183; &amp;#128274; quarantined by the problem statement &amp;#183; every eval set is scored under all 15 settings, not just clean" style="text;html=1;whiteSpace=wrap;verticalAlign=middle;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="990" y="556" width="470" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="total" value="&lt;b&gt;~57 GB of images &amp;#8594; 2.0 GB of embeddings&lt;/b&gt;&lt;br&gt;487,636 rows across 10 sources. Each photo becomes 768 floats,&lt;br&gt;so the corpora are read &lt;b&gt;once&lt;/b&gt; and never stored again &amp;#8212; the&lt;br&gt;whole project fits on a laptop. &lt;i&gt;~ = streamed, never on disk.&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="272" y="350" width="268" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="rule" value="&lt;b&gt;The rule that makes the numbers mean something.&lt;/b&gt; No image and no generator family crosses the train/eval line &amp;#8212; build_manifest.py asserts both.&lt;br&gt;The 10 generators in the headline set appear nowhere in training, so the score is what happens on a model nobody has seen. The LAION pool&lt;br&gt;goes further: a different &lt;b&gt;corpus&lt;/b&gt;, not just different images, because sharing a corpus flatters a false-positive rate." style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="692" width="1410" height="74" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeWidth=1;" edge="1" parent="1" source="sid" target="b_gen">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeWidth=1;" edge="1" parent="1" source="mj" target="b_gen">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeWidth=1;" edge="1" parent="1" source="sid" target="b_tam">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeWidth=1;" edge="1" parent="1" source="sidtamp" target="b_tam">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeWidth=1;" edge="1" parent="1" source="sid" target="b_face">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeWidth=1;" edge="1" parent="1" source="sid" target="b_disp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeWidth=1;" edge="1" parent="1" source="calib" target="rot">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeWidth=1;" edge="1" parent="1" source="rot" target="b_gen">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#82b366;" edge="1" parent="1" source="b_gen" target="e_ood">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#82b366;" edge="1" parent="1" source="b_gen" target="e_org">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#82b366;" edge="1" parent="1" source="b_gen" target="e_tamp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#82b366;" edge="1" parent="1" source="b_gen" target="e_ftamp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#82b366;" edge="1" parent="1" source="b_gen" target="e_laion">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

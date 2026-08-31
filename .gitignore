@@ -11,3 +11,6 @@ preds.json
 data/manifests/rows_modern_*.csv
 data/raw/modern_*/
 data/raw/probe_*/
+
+# Dataset sample thumbnails for the poster. Licensed corpora -- never commit.
+poster-samples/

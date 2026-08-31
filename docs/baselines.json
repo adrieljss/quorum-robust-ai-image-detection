@@ -1,0 +1,660 @@
+{
+ "organizer_val/wildfake_dalle_adv": {
+  "quorum": {
+   "clean": {
+    "auroc": 0.9773,
+    "acc": 0.9342
+   },
+   "jpeg30": {
+    "auroc": 0.9832,
+    "acc": 0.9375
+   },
+   "blur20": {
+    "auroc": 0.9528,
+    "acc": 0.8925
+   },
+   "resize025": {
+    "auroc": 0.9737,
+    "acc": 0.925
+   },
+   "noise005": {
+    "auroc": 0.9468,
+    "acc": 0.8717
+   }
+  },
+  "cnndetection_crop": {
+   "clean": {
+    "auroc": 0.5864,
+    "acc": 0.4992
+   },
+   "jpeg30": {
+    "auroc": 0.5269,
+    "acc": 0.5042
+   },
+   "blur20": {
+    "auroc": 0.505,
+    "acc": 0.4967
+   },
+   "resize025": {
+    "auroc": 0.5056,
+    "acc": 0.4983
+   },
+   "noise005": {
+    "auroc": 0.521,
+    "acc": 0.4983
+   }
+  },
+  "cnndetection_resize": {
+   "clean": {
+    "auroc": 0.3896,
+    "acc": 0.4992
+   },
+   "jpeg30": {
+    "auroc": 0.3782,
+    "acc": 0.5
+   },
+   "blur20": {
+    "auroc": 0.3237,
+    "acc": 0.4992
+   },
+   "resize025": {
+    "auroc": 0.3135,
+    "acc": 0.4975
+   },
+   "noise005": {
+    "auroc": 0.4513,
+    "acc": 0.5025
+   }
+  },
+  "fatformer": {
+   "clean": {
+    "auroc": 0.6457,
+    "acc": 0.5025
+   },
+   "jpeg30": {
+    "auroc": 0.8833,
+    "acc": 0.5017
+   },
+   "blur20": {
+    "auroc": 0.2517,
+    "acc": 0.4517
+   },
+   "resize025": {
+    "auroc": 0.3024,
+    "acc": 0.4575
+   },
+   "noise005": {
+    "auroc": 0.515,
+    "acc": 0.5067
+   }
+  },
+  "n": {
+   "real": 600,
+   "fake": 600
+  }
+ },
+ "unseen_generators/adm": {
+  "quorum": {
+   "clean": {
+    "auroc": 0.4829,
+    "acc": 0.6933
+   },
+   "jpeg30": {
+    "auroc": 0.5395,
+    "acc": 0.7307
+   },
+   "blur20": {
+    "auroc": 0.577,
+    "acc": 0.748
+   },
+   "resize025": {
+    "auroc": 0.6737,
+    "acc": 0.7373
+   },
+   "noise005": {
+    "auroc": 0.6727,
+    "acc": 0.7787
+   }
+  },
+  "cnndetection_crop": {
+   "clean": {
+    "auroc": 0.618,
+    "acc": 0.7973
+   },
+   "jpeg30": {
+    "auroc": 0.636,
+    "acc": 0.788
+   },
+   "blur20": {
+    "auroc": 0.6664,
+    "acc": 0.804
+   },
+   "resize025": {
+    "auroc": 0.5896,
+    "acc": 0.8
+   },
+   "noise005": {
+    "auroc": 0.643,
+    "acc": 0.7973
+   }
+  },
+  "cnndetection_resize": {
+   "clean": {
+    "auroc": 0.7629,
+    "acc": 0.7987
+   },
+   "jpeg30": {
+    "auroc": 0.9086,
+    "acc": 0.8053
+   },
+   "blur20": {
+    "auroc": 0.8463,
+    "acc": 0.8013
+   },
+   "resize025": {
+    "auroc": 0.8477,
+    "acc": 0.8027
+   },
+   "noise005": {
+    "auroc": 0.6165,
+    "acc": 0.7867
+   }
+  },
+  "fatformer": {
+   "clean": {
+    "auroc": 0.7491,
+    "acc": 0.8347
+   },
+   "jpeg30": {
+    "auroc": 0.6385,
+    "acc": 0.8027
+   },
+   "blur20": {
+    "auroc": 0.9159,
+    "acc": 0.8307
+   },
+   "resize025": {
+    "auroc": 0.9121,
+    "acc": 0.8587
+   },
+   "noise005": {
+    "auroc": 0.7579,
+    "acc": 0.812
+   }
+  },
+  "n": {
+   "real": 600,
+   "fake": 150
+  }
+ },
+ "unseen_generators/dfgan": {
+  "quorum": {
+   "clean": {
+    "auroc": 0.7163,
+    "acc": 0.7413
+   },
+   "jpeg30": {
+    "auroc": 0.936,
+    "acc": 0.8493
+   },
+   "blur20": {
+    "auroc": 0.819,
+    "acc": 0.812
+   },
+   "resize025": {
+    "auroc": 0.9121,
+    "acc": 0.8373
+   },
+   "noise005": {
+    "auroc": 0.798,
+    "acc": 0.7973
+   }
+  },
+  "cnndetection_crop": {
+   "clean": {
+    "auroc": 0.9274,
+    "acc": 0.8787
+   },
+   "jpeg30": {
+    "auroc": 0.8789,
+    "acc": 0.8547
+   },
+   "blur20": {
+    "auroc": 0.8955,
+    "acc": 0.8667
+   },
+   "resize025": {
+    "auroc": 0.846,
+    "acc": 0.8333
+   },
+   "noise005": {
+    "auroc": 0.7808,
+    "acc": 0.8013
+   }
+  },
+  "cnndetection_resize": {
+   "clean": {
+    "auroc": 0.9664,
+    "acc": 0.88
+   },
+   "jpeg30": {
+    "auroc": 0.9785,
+    "acc": 0.872
+   },
+   "blur20": {
+    "auroc": 0.9594,
+    "acc": 0.864
+   },
+   "resize025": {
+    "auroc": 0.9563,
+    "acc": 0.836
+   },
+   "noise005": {
+    "auroc": 0.7604,
+    "acc": 0.7907
+   }
+  },
+  "fatformer": {
+   "clean": {
+    "auroc": 0.9946,
+    "acc": 0.996
+   },
+   "jpeg30": {
+    "auroc": 0.8196,
+    "acc": 0.8307
+   },
+   "blur20": {
+    "auroc": 0.9896,
+    "acc": 0.9413
+   },
+   "resize025": {
+    "auroc": 0.995,
+    "acc": 0.9707
+   },
+   "noise005": {
+    "auroc": 0.9627,
+    "acc": 0.9187
+   }
+  },
+  "n": {
+   "real": 600,
+   "fake": 150
+  }
+ },
+ "unseen_generators/gigagan": {
+  "quorum": {
+   "clean": {
+    "auroc": 0.7699,
+    "acc": 0.7657
+   },
+   "jpeg30": {
+    "auroc": 0.822,
+    "acc": 0.8139
+   },
+   "blur20": {
+    "auroc": 0.7821,
+    "acc": 0.8005
+   },
+   "resize025": {
+    "auroc": 0.7879,
+    "acc": 0.7818
+   },
+   "noise005": {
+    "auroc": 0.7944,
+    "acc": 0.8005
+   }
+  },
+  "cnndetection_crop": {
+   "clean": {
+    "auroc": 0.679,
+    "acc": 0.7979
+   },
+   "jpeg30": {
+    "auroc": 0.704,
+    "acc": 0.7858
+   },
+   "blur20": {
+    "auroc": 0.7126,
+    "acc": 0.8046
+   },
+   "resize025": {
+    "auroc": 0.6503,
+    "acc": 0.7992
+   },
+   "noise005": {
+    "auroc": 0.6668,
+    "acc": 0.8005
+   }
+  },
+  "cnndetection_resize": {
+   "clean": {
+    "auroc": 0.7246,
+    "acc": 0.8019
+   },
+   "jpeg30": {
+    "auroc": 0.7185,
+    "acc": 0.8019
+   },
+   "blur20": {
+    "auroc": 0.7676,
+    "acc": 0.8019
+   },
+   "resize025": {
+    "auroc": 0.7771,
+    "acc": 0.8032
+   },
+   "noise005": {
+    "auroc": 0.5811,
+    "acc": 0.7898
+   }
+  },
+  "fatformer": {
+   "clean": {
+    "auroc": 0.7111,
+    "acc": 0.834
+   },
+   "jpeg30": {
+    "auroc": 0.3643,
+    "acc": 0.8019
+   },
+   "blur20": {
+    "auroc": 0.8291,
+    "acc": 0.8447
+   },
+   "resize025": {
+    "auroc": 0.8051,
+    "acc": 0.8514
+   },
+   "noise005": {
+    "auroc": 0.7308,
+    "acc": 0.822
+   }
+  },
+  "n": {
+   "real": 600,
+   "fake": 147
+  }
+ },
+ "unseen_generators/vqvae_ffhq": {
+  "quorum": {
+   "clean": {
+    "auroc": 0.2243,
+    "acc": 0.6533
+   },
+   "jpeg30": {
+    "auroc": 0.2092,
+    "acc": 0.6813
+   },
+   "blur20": {
+    "auroc": 0.4683,
+    "acc": 0.708
+   },
+   "resize025": {
+    "auroc": 0.5118,
+    "acc": 0.6853
+   },
+   "noise005": {
+    "auroc": 0.3778,
+    "acc": 0.7
+   }
+  },
+  "cnndetection_crop": {
+   "clean": {
+    "auroc": 0.5707,
+    "acc": 0.7933
+   },
+   "jpeg30": {
+    "auroc": 0.5468,
+    "acc": 0.78
+   },
+   "blur20": {
+    "auroc": 0.6065,
+    "acc": 0.7987
+   },
+   "resize025": {
+    "auroc": 0.5369,
+    "acc": 0.7933
+   },
+   "noise005": {
+    "auroc": 0.5047,
+    "acc": 0.796
+   }
+  },
+  "cnndetection_resize": {
+   "clean": {
+    "auroc": 0.8105,
+    "acc": 0.796
+   },
+   "jpeg30": {
+    "auroc": 0.9537,
+    "acc": 0.7987
+   },
+   "blur20": {
+    "auroc": 0.9267,
+    "acc": 0.8
+   },
+   "resize025": {
+    "auroc": 0.9344,
+    "acc": 0.7987
+   },
+   "noise005": {
+    "auroc": 0.5555,
+    "acc": 0.7853
+   }
+  },
+  "fatformer": {
+   "clean": {
+    "auroc": 0.7844,
+    "acc": 0.816
+   },
+   "jpeg30": {
+    "auroc": 0.7497,
+    "acc": 0.7987
+   },
+   "blur20": {
+    "auroc": 0.9106,
+    "acc": 0.808
+   },
+   "resize025": {
+    "auroc": 0.9195,
+    "acc": 0.8133
+   },
+   "noise005": {
+    "auroc": 0.7596,
+    "acc": 0.7947
+   }
+  },
+  "n": {
+   "real": 600,
+   "fake": 150
+  }
+ },
+ "unseen_generators/gptimage2": {
+  "quorum": {
+   "clean": {
+    "auroc": 0.7906,
+    "acc": 0.7827
+   },
+   "jpeg30": {
+    "auroc": 0.7724,
+    "acc": 0.7973
+   },
+   "blur20": {
+    "auroc": 0.7978,
+    "acc": 0.8147
+   },
+   "resize025": {
+    "auroc": 0.7885,
+    "acc": 0.7907
+   },
+   "noise005": {
+    "auroc": 0.8053,
+    "acc": 0.8013
+   }
+  },
+  "cnndetection_crop": {
+   "clean": {
+    "auroc": 0.5014,
+    "acc": 0.7947
+   },
+   "jpeg30": {
+    "auroc": 0.5465,
+    "acc": 0.78
+   },
+   "blur20": {
+    "auroc": 0.5545,
+    "acc": 0.7973
+   },
+   "resize025": {
+    "auroc": 0.5571,
+    "acc": 0.7947
+   },
+   "noise005": {
+    "auroc": 0.5097,
+    "acc": 0.796
+   }
+  },
+  "cnndetection_resize": {
+   "clean": {
+    "auroc": 0.5193,
+    "acc": 0.7947
+   },
+   "jpeg30": {
+    "auroc": 0.4891,
+    "acc": 0.7973
+   },
+   "blur20": {
+    "auroc": 0.5217,
+    "acc": 0.7947
+   },
+   "resize025": {
+    "auroc": 0.5164,
+    "acc": 0.7947
+   },
+   "noise005": {
+    "auroc": 0.5235,
+    "acc": 0.7853
+   }
+  },
+  "fatformer": {
+   "clean": {
+    "auroc": 0.7662,
+    "acc": 0.7987
+   },
+   "jpeg30": {
+    "auroc": 0.6731,
+    "acc": 0.7987
+   },
+   "blur20": {
+    "auroc": 0.7949,
+    "acc": 0.8107
+   },
+   "resize025": {
+    "auroc": 0.7881,
+    "acc": 0.804
+   },
+   "noise005": {
+    "auroc": 0.5723,
+    "acc": 0.788
+   }
+  },
+  "n": {
+   "real": 600,
+   "fake": 150
+  }
+ },
+ "unseen_generators/nanobanana": {
+  "quorum": {
+   "clean": {
+    "auroc": 0.8004,
+    "acc": 0.7787
+   },
+   "jpeg30": {
+    "auroc": 0.7809,
+    "acc": 0.7947
+   },
+   "blur20": {
+    "auroc": 0.8015,
+    "acc": 0.808
+   },
+   "resize025": {
+    "auroc": 0.8022,
+    "acc": 0.792
+   },
+   "noise005": {
+    "auroc": 0.8405,
+    "acc": 0.8107
+   }
+  },
+  "cnndetection_crop": {
+   "clean": {
+    "auroc": 0.511,
+    "acc": 0.7933
+   },
+   "jpeg30": {
+    "auroc": 0.5445,
+    "acc": 0.78
+   },
+   "blur20": {
+    "auroc": 0.5163,
+    "acc": 0.7973
+   },
+   "resize025": {
+    "auroc": 0.4957,
+    "acc": 0.792
+   },
+   "noise005": {
+    "auroc": 0.5135,
+    "acc": 0.796
+   }
+  },
+  "cnndetection_resize": {
+   "clean": {
+    "auroc": 0.5009,
+    "acc": 0.7947
+   },
+   "jpeg30": {
+    "auroc": 0.4724,
+    "acc": 0.7973
+   },
+   "blur20": {
+    "auroc": 0.5036,
+    "acc": 0.7947
+   },
+   "resize025": {
+    "auroc": 0.5009,
+    "acc": 0.7947
+   },
+   "noise005": {
+    "auroc": 0.4958,
+    "acc": 0.7853
+   }
+  },
+  "fatformer": {
+   "clean": {
+    "auroc": 0.7487,
+    "acc": 0.7987
+   },
+   "jpeg30": {
+    "auroc": 0.7023,
+    "acc": 0.7987
+   },
+   "blur20": {
+    "auroc": 0.8052,
+    "acc": 0.8027
+   },
+   "resize025": {
+    "auroc": 0.7927,
+    "acc": 0.7987
+   },
+   "noise005": {
+    "auroc": 0.6381,
+    "acc": 0.792
+   }
+  },
+  "n": {
+   "real": 600,
+   "fake": 150
+  }
+ }
+}
