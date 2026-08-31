@@ -1,0 +1,12 @@
+# Hugging Face Space runtime. torch is installed separately in the Dockerfile
+# from the CPU index -- listing it here would pull the CUDA build.
+flask>=3.0,<4
+gunicorn>=21
+open_clip_torch
+numpy
+pandas
+pillow
+opencv-python-headless>=4.8
+scikit-learn
+# signals.text only. The demo runs without it and reports null.
+rapidocr_onnxruntime

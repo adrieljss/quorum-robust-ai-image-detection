@@ -1,0 +1,28 @@
+# LICENCE BOUNDARY, not an optimisation. A Space is PUBLIC, and data/cache and
+# data/raw hold SID_Set, So-Fake-OOD and a CC BY-NC face corpus whose licences
+# do not permit redistribution. The demo needs NONE of it -- inference reads
+# data/models/*.npz (305 KB) and nothing else. If a build fails for a missing
+# file, fix the code path, do not open a hole here.
+data/cache/
+data/raw/
+data/manifests/
+data/models/backup_*/
+
+# NOTE: all seven data/models/*.npz ARE needed -- general and tampered (the
+# scorer), face, spectral and text_crop (branches), fusion (its Platt constants
+# only) and content_prompts (the zero-shot content label). 305 KB total.
+
+.git/
+.github/
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+scratchpad/
+notebooks/
+
+# Docs and figures are for the repo, not the runtime image.
+docs/
+test-images/variants/
+preds.json
+*.json.tmp

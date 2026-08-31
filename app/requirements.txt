@@ -19,3 +19,8 @@ pillow
 # with cv2.imshow elsewhere in this environment.
 opencv-python-headless>=4.8
 scikit-learn
+
+# signals.text only. ~10M ONNX OCR model, CPU, downloaded on first use. Omit it
+# and the demo still runs -- analyzer.py reports signals.text = null rather than
+# failing the request. Everything else above is required.
+rapidocr_onnxruntime

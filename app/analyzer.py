@@ -330,7 +330,13 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     text_cal = None
     if st.text_w is not None:
         from quorum.detectors.text import text_strip, tiles
-        strip, text_px = text_strip(img)
+        try:
+            strip, text_px = text_strip(img)
+        except ImportError:
+            # rapidocr_onnxruntime absent (it is optional in requirements.txt).
+            # Report null like any other unavailable branch rather than 500 the
+            # request -- a missing OCR engine is not a failed analysis.
+            strip, text_px = None, 0.0
         if strip is not None:
             tv = st.embedder.embed_batch(tiles(strip))
             # Mean over tiles, not max: they are mechanical slices of ONE region,
