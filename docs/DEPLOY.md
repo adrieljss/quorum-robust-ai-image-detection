@@ -58,6 +58,31 @@ loosening that file.
 
    Do not pull that commit back into GitHub.
 
+## Three things this Dockerfile got wrong, so they are not reintroduced
+
+All three were found by building it, and all three passed a green build.
+
+1. **torch and torchvision from different indexes.** `open_clip_torch` depends
+   on torchvision, so installing `torch` alone from the CPU index lets pip
+   satisfy that with a PyPI torchvision built against a *different* torch. It
+   imports far enough to look fine, then dies on
+   `RuntimeError: operator torchvision::nms does not exist` — so `open_clip`
+   never loads and the demo is dead. Both now come from the same index in the
+   same command, with an import check appended.
+2. **`(clip_bake && ocr_bake) || echo` swallowed a CLIP failure.** The build
+   exited 0 and shipped an image with no CLIP weights in it, which is precisely
+   what the bake exists to prevent. They are separate `RUN` steps now; the CLIP
+   one has no fallback.
+3. **`.dockerignore` excluded `data/cache/` and missed `data/.cache/`** —
+   dotted, a different path — which put HuggingFace download metadata *listing
+   the private cache repo's contents* into a public image. It is an allowlist
+   now (`data/**`, then `!data/models/**`). A blocklist has to anticipate every
+   path; an allowlist only has to name what we want.
+
+The last two are now **build assertions**, not things anyone checks by eye: the
+final `RUN` fails the build unless the safetensors file is in the layer and
+`data/` is under 2 MB.
+
 ## Verify before you call it done
 
 ```bash
@@ -94,6 +119,20 @@ runs up to **three** CLIP passes — the image, the face crop, and the text tile
 so budget roughly 10 s per upload, plus an OCR sweep. `--preload` in the
 Dockerfile pays the 9.5 s model load at container start rather than on the first
 request, so the first visitor does not eat it.
+
+**Verified in the container** (`docker run -p 7860:7860`), not just locally:
+
+```
+GET /                          HTTP 200
+POST /api/analyze  fake_quorum_poster.png
+   verdict uncertain, confidence 0.4165
+   general 0.7517  tampered 0.035  face null  regularity 0.477  text 0.7629
+POST /api/analyze  fake1.png
+   provenance declares_ai=True, C2PA manifest present
+```
+
+Image is **5.59 GB** — inside the Space limit, but it is a real cold-pull cost.
+Mostly torch + torchvision + the 1.6 GB baked cache.
 
 **Not measured:** cold-start time on Spaces itself — how long HF takes to pull
 and start a ~4 GB image. Time it once after the first deploy and record it here.

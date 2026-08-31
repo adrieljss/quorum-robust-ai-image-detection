@@ -1,16 +1,19 @@
-# LICENCE BOUNDARY, not an optimisation. A Space is PUBLIC, and data/cache and
-# data/raw hold SID_Set, So-Fake-OOD and a CC BY-NC face corpus whose licences
-# do not permit redistribution. The demo needs NONE of it -- inference reads
-# data/models/*.npz (305 KB) and nothing else. If a build fails for a missing
-# file, fix the code path, do not open a hole here.
-data/cache/
-data/raw/
-data/manifests/
-data/models/backup_*/
-
-# NOTE: all seven data/models/*.npz ARE needed -- general and tampered (the
-# scorer), face, spectral and text_crop (branches), fusion (its Platt constants
-# only) and content_prompts (the zero-shot content label). 305 KB total.
+# LICENCE BOUNDARY, not an optimisation. A Space is PUBLIC, and data/ holds
+# SID_Set, So-Fake-OOD and a CC BY-NC face corpus whose licences do not permit
+# redistribution.
+#
+# This is an ALLOWLIST, and it is an allowlist because the blocklist version of
+# it FAILED: it excluded `data/cache/` and missed `data/.cache/` -- dotted, a
+# different path -- which shipped HuggingFace download metadata listing the
+# private cache repo's contents into the image. A blocklist has to anticipate
+# every path; an allowlist only has to name the ones we want.
+#
+# The demo loads seven .npz (272 KB) and yunet.onnx. Nothing else under data/.
+# If a build fails on a missing file, fix the code path -- do not add an
+# exception here without checking what its licence permits.
+data/**
+!data/models/**
+data/models/backup_*/**
 
 .git/
 .github/
@@ -18,11 +21,15 @@ data/models/backup_*/
 __pycache__/
 **/__pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
 scratchpad/
 notebooks/
 
-# Docs and figures are for the repo, not the runtime image.
+# Repo furniture the runtime image does not need. docs/figures alone is ~2 MB.
 docs/
 test-images/variants/
 preds.json
 *.json.tmp
+Dockerfile
+.dockerignore
