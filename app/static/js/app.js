@@ -47,8 +47,6 @@
   var SIGNAL_META = [
     { key: "general", label: "General" },
     { key: "tampered", label: "Tampered" },
-    { key: "face", label: "Face" },
-    { key: "text", label: "Text" },
     { key: "regularity", label: "Regularity" },
   ];
 
@@ -88,7 +86,8 @@
   var confidenceRing = document.getElementById("confidence-ring");
   var metaChips = document.getElementById("meta-chips");
   var regionsPanel = document.getElementById("regions-panel");
-  var regionList = document.getElementById("region-list");
+  var accountedRegionList = document.getElementById("accounted-region-list");
+  var unaccountedRegionList = document.getElementById("unaccounted-region-list");
   var signalList = document.getElementById("signal-list");
   var loadingCopy = document.getElementById("loading-copy");
 
@@ -343,7 +342,8 @@
     };
     resultImage.src = item.objectUrl;
     resultImage.alt = data.filename || item.file.name;
-    regionList.innerHTML = "";
+    accountedRegionList.innerHTML = "";
+    unaccountedRegionList.innerHTML = "";
     regionsPanel.classList.add("is-hidden");
     regionOverlay.innerHTML = "";
     if (resultImage.complete && resultImage.naturalWidth) {
@@ -417,12 +417,16 @@
 
   /** Render validated region results as compact signal squares. */
   function renderRegions(regions) {
-    regionList.innerHTML = "";
+    accountedRegionList.innerHTML = "";
+    unaccountedRegionList.innerHTML = "";
     regionsPanel.classList.add("is-hidden");
     if (!Array.isArray(regions) || !regions.length) return;
     if (!resultImage.naturalWidth || !resultImage.naturalHeight) return;
 
     regions.forEach(function (region, index) {
+      var type = (region.type || "").toLowerCase();
+      var destination = type === "face" ? accountedRegionList : type === "text" ? unaccountedRegionList : null;
+      if (!destination) return;
       var crop = normaliseRegion(region && region.bbox);
       if (!crop) return;
 
@@ -466,10 +470,13 @@
       details.appendChild(summary);
       li.appendChild(image);
       li.appendChild(details);
-      regionList.appendChild(li);
+      destination.appendChild(li);
     });
 
-    regionsPanel.classList.toggle("is-hidden", !regionList.children.length);
+    regionsPanel.classList.toggle(
+      "is-hidden",
+      !accountedRegionList.children.length && !unaccountedRegionList.children.length
+    );
   }
 
   function normaliseRegion(bbox) {
@@ -517,6 +524,7 @@
       imageRect.top - visualRect.top + (imageRect.height - contentHeight) / 2;
 
     regions.forEach(function (region, index) {
+      if (!isMultiPredictionRegion(region)) return;
       var crop = normaliseRegion(region && region.bbox);
       if (!crop) return;
       var verdict = region.verdict || "uncertain";
@@ -548,7 +556,7 @@
   /** Draw a line from each detected image region to its result square. */
   function renderRegionConnectors() {
     regionConnectors.innerHTML = "";
-    if (!regionOverlay.children.length || !regionList.children.length) return;
+    if (!regionOverlay.children.length) return;
 
     var cardRect = resultCard.getBoundingClientRect();
     regionConnectors.setAttribute(
@@ -558,7 +566,9 @@
 
     Array.prototype.forEach.call(regionOverlay.children, function (box) {
       var index = box.getAttribute("data-region-index");
-      var target = regionList.querySelector('[data-region-index="' + index + '"]');
+      var target =
+        accountedRegionList.querySelector('[data-region-index="' + index + '"]') ||
+        unaccountedRegionList.querySelector('[data-region-index="' + index + '"]');
       if (!target) return;
 
       var boxRect = box.getBoundingClientRect();
@@ -573,8 +583,13 @@
     });
   }
 
+  function isMultiPredictionRegion(region) {
+    var type = (region && region.type ? region.type : "").toLowerCase();
+    return type === "face" || type === "text";
+  }
+
   /**
-   * Five model bars. A missing / null signal is shown as "Not measured"
+   * Three single-prediction bars. A missing / null signal is shown as "Not measured"
    * rather than 0 — 0 would look like "the model said real".
    */
   function renderSignals(signals) {
