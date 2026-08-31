@@ -15,6 +15,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 
 import analyzer
+import video_analyzer
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -29,6 +30,7 @@ app = Flask(
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB total upload cap
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
+ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov"}
 
 # Real analyzer is always used -- no demo/fake mode.
 DEMO_MODE = False
@@ -48,8 +50,26 @@ def video():
 
 @app.route("/api/analyze-video", methods=["POST"])
 def analyze_video():
-    """Temporary contract endpoint; replace with the video pipeline."""
-    return jsonify({"error": "Video analysis has not been connected yet."}), 501
+    """Analyze one uploaded video through the sampled-frame pipeline."""
+    files = request.files.getlist("video")
+    if len(files) != 1:
+        return jsonify({"error": "Upload exactly one video using form field 'video'."}), 400
+
+    stored_file = files[0]
+    filename = stored_file.filename or "untitled"
+    if Path(filename).suffix.lower() not in ALLOWED_VIDEO_EXTENSIONS:
+        return jsonify({"error": f"Unsupported video type: {filename}"}), 400
+    payload = stored_file.read()
+    if not payload:
+        return jsonify({"error": f"Empty video: {filename}"}), 400
+
+    try:
+        return jsonify(video_analyzer.analyze_video(payload, filename))
+    except ValueError as exc:
+        return jsonify({"error": f"Could not analyze {filename}: {exc}"}), 400
+    except Exception as exc:
+        app.logger.exception("video analysis failed for %s", filename)
+        return jsonify({"error": f"Could not analyze {filename}: {exc}"}), 500
 
 
 @app.route("/api/analyze", methods=["POST"])

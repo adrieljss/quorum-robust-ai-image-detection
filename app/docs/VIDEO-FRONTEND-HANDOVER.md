@@ -40,6 +40,11 @@ Return HTTP `200` with exactly one result wrapped in a `result` object:
 }
 ```
 
+The connected backend additionally returns a top-level `frames` array. It is
+empty unless the aggregate `result.verdict` is `likely_ai`; when populated,
+each entry contains `timestamp_seconds` and a frame-level image-result-like
+record. See `VIDEO-BACKEND-HANDOVER.md` for its full schema.
+
 | Field | Type | Required | UI behavior |
 |---|---|---|---|
 | `result.filename` | string | recommended | available for future display; the UI uses the local filename now |
