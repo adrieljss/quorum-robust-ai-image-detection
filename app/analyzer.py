@@ -29,13 +29,17 @@ Notes worth keeping in mind:
     every configuration tested (TODO-GENERAL-SPECTRAL.md). This is a
     deliberate exclusion, not a missing piece -- do not wire it in without
     re-checking those numbers first.
-  - regions: at most one entry, type "face". Same rule as above -- no
-    trained probe, no entry, so an empty list means "nothing scorable
-    found," not "nothing was checked." Only the single largest face is
-    scored, matching how face.npz was trained (one face per image, not an
-    ensemble). tampered does not get a region entry: it scores the whole
-    image (same CLIP embedding as general, just a different linear probe on
-    top), not a specific crop, so it has nothing to draw a box around.
+  - regions: face gets at most one entry (largest detected face, matching
+    how face.npz was trained on one face per image, not an ensemble), always
+    with a real score/verdict. text gets up to MAX_TEXT_REGIONS entries
+    (RapidOCR locations, most-confident first) with score/verdict always
+    null -- OCR finds WHERE text is but nothing scores whether it is
+    AI-generated, so there is nothing honest to put in those fields. This is
+    a deliberate exception to "every region has a score": the request was to
+    surface detected text without it implying or affecting a verdict.
+    tampered does not get a region entry at all: it scores the whole image
+    (same CLIP embedding as general, a different linear probe on top), not a
+    specific crop, so there is no box to draw for it.
   - _face_bbox() re-runs face detection instead of editing
     quorum/features.py to have face_crop() return the box it already
     computes internally. That file is shared with the training pipeline, so
@@ -86,6 +90,7 @@ class _State:
 
         self.shipped = shipped
         self.embedder = Embedder()
+        self.ocr = None  # lazy: only construct RapidOCR if a request needs it
         # load_probes() pre-scales tampered's (w, b) by shipped.TAMPERED_SCALE
         # (currently 1.25) as of the three-branch predict.py update. That scale
         # is exactly right for feeding st.probes back into score_embeddings()
@@ -182,6 +187,60 @@ def _face_bbox(img: Image.Image) -> Optional[dict]:
         "width": int(round(float(bw))),
         "height": int(round(float(bh))),
     }
+
+
+MAX_TEXT_REGIONS = 10  # UI cap on a screenshot/document with dozens of words
+
+
+def _text_regions(img: Image.Image, st: "_State") -> list:
+    """[{"type": "text", "bbox": {...}, "score": None, "verdict": None}, ...]
+
+    Uses RapidOCR only to LOCATE text, never to judge it -- there is no
+    saved, trained probe for whether detected text is AI-generated (see
+    module docstring), so score/verdict are always null here, deliberately
+    outside the usual "regions always have a score" convention. Runs on
+    every image regardless of content_type, so a sign or caption in a
+    non-"text" photo is still found -- OCR is the slow part of this
+    project, and that cost is accepted here on purpose rather than skipped
+    based on a guess.
+
+    RapidOCR returns a 4-point quadrilateral per detection (text can be
+    rotated); this collapses each to its axis-aligned bounding box to match
+    every other region's {x, y, width, height} shape, at the cost of a
+    slightly loose box on tilted text.
+
+    The engine itself (st.ocr) is constructed once and cached on _State,
+    same as the CLIP embedder -- quorum.detectors.text._ocr() builds a new
+    RapidOCR() on every call, which is fine for a one-off training script
+    but wasteful across many requests in a long-lived server process.
+    """
+    if st.ocr is None:
+        from rapidocr_onnxruntime import RapidOCR
+        st.ocr = RapidOCR()
+
+    res, _ = st.ocr(np.asarray(img.convert("RGB")))
+    if not res:
+        return []
+    # RapidOCR rows are [box(4x2), text, confidence]; keep the most confident
+    # detections when there are more than MAX_TEXT_REGIONS.
+    res = sorted(res, key=lambda r: float(r[2]), reverse=True)[:MAX_TEXT_REGIONS]
+    out = []
+    for box, _text, _conf in res:
+        pts = np.asarray(box, dtype=np.float64)
+        x0, y0 = pts.min(axis=0)
+        x1, y1 = pts.max(axis=0)
+        out.append({
+            "type": "text",
+            "bbox": {
+                "x": int(round(x0)),
+                "y": int(round(y0)),
+                "width": int(round(x1 - x0)),
+                "height": int(round(y1 - y0)),
+            },
+            "score": None,
+            "verdict": None,
+        })
+    return out
 
 
 def _content_type(general_vec: np.ndarray) -> str:
@@ -291,6 +350,11 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
         # else: face_crop() found a face but re-detection above didn't --
         # shouldn't happen, but fail closed (no region) rather than guess a box.
 
+    # Runs regardless of face_present / content_type -- see _text_regions()
+    # docstring for why this always scans rather than skipping when it looks
+    # unnecessary.
+    regions.extend(_text_regions(img, st))
+
     # THE shipped score -- see module docstring, do not recompute by hand.
     # Since the face branch joined predict.py, this is a THREE-branch max
     # (general, tampered, face) -- omitting face= here would silently revert
@@ -331,3 +395,4 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
         "reliability": reliability,
         "regions": regions,
     }
+ 

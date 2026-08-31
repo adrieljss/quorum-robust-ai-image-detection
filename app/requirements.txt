@@ -19,3 +19,7 @@ pillow
 # with cv2.imshow elsewhere in this environment.
 opencv-python-headless>=4.8
 scikit-learn
+# RapidOCR locates text for the regions[] "text" entries (bounding boxes
+# only -- no trained probe scores whether the text itself is AI-generated).
+# First use downloads its small (~10MB) detection + recognition ONNX models.
+rapidocr_onnxruntime
