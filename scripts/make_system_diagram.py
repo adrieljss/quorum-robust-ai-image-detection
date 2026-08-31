@@ -1,31 +1,39 @@
-"""Slide diagram of the SYSTEM as the demo presents it.
+"""Slide diagram of the system -> docs/figures/system.drawio.
 
-    docs/figures/system.drawio  ->  app.diagrams.net, File > Open From > Device
+    app.diagrams.net, File > Open From > Device
 
-Deliberately NOT make_architecture_diagram.py. That one is the poster: probes,
-logit-space max(), the shift, parameter counts. This one is a slide, read in
-about ten seconds by someone who does not know what a probe is -- so it says
-"three detectors" and "highest score wins" and shows what a user actually gets
-back.
+Sits between the poster diagram and a cartoon. It keeps the real branch names,
+the arithmetic, the frozen/trained split, and the branches that exist but are
+not in the score -- while dropping the poster's per-decision annotations, so it
+reads in half a minute rather than five.
 
-The one structural idea it must carry is the split: ONE line produces the
-verdict, and everything else the demo shows is beside it, never inside it.
+Every count and constant is read from predict.py or off the .npz files, the same
+rule make_architecture_diagram.py follows: a slide that outlives the model it
+describes is worse than no slide.
 """
 import sys
 from pathlib import Path
 from xml.sax.saxutils import quoteattr
 
+import numpy as np
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+import predict  # noqa: E402
+from quorum.embed import BACKBONE  # noqa: E402
 
 OUT = ROOT / "docs" / "figures" / "system.drawio"
 
 BOX = "rounded=1;whiteSpace=wrap;html=1;arcSize=10;"
 GREEN = "fillColor=#d5e8d4;strokeColor=#82b366;"
 BLUE = "fillColor=#dae8fc;strokeColor=#6c8ebf;"
+FROZEN = "fillColor=#eaf2fb;strokeColor=#6c8ebf;dashed=1;"
 GREY = "fillColor=#f5f5f5;strokeColor=#999999;"
 ORANGE = "fillColor=#ffe6cc;strokeColor=#d79b00;"
 PURPLE = "fillColor=#e1d5e7;strokeColor=#9673a6;"
+RED = "fillColor=#f8cecc;strokeColor=#b85450;"
+YELLOW = "fillColor=#fff2cc;strokeColor=#d6b656;"
 EDGE = ("edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;"
         "strokeWidth=2;endArrow=block;")
 SOFT = EDGE + "dashed=1;strokeColor=#9673a6;strokeWidth=1;"
@@ -33,15 +41,15 @@ SOFT = EDGE + "dashed=1;strokeColor=#9673a6;strokeWidth=1;"
 nodes, edges = [], []
 
 
-def box(i, label, x, y, w, h, style=BOX + BLUE, font=14):
+def box(i, label, x, y, w, h, style=BOX + BLUE, font=13):
     nodes.append((i, label, x, y, w, h, style + f"fontSize={font};"))
     return i
 
 
-def txt(i, label, x, y, w, h, style="", font=12):
+def txt(i, label, x, y, w, h, style="align=left;", font=11):
     nodes.append((i, label, x, y, w, h,
-                  "text;html=1;whiteSpace=wrap;align=center;"
-                  f"verticalAlign=middle;fontSize={font};" + style))
+                  "text;html=1;whiteSpace=wrap;verticalAlign=middle;"
+                  f"fontSize={font};" + style))
     return i
 
 
@@ -49,70 +57,122 @@ def arrow(a, b, label="", style=EDGE):
     edges.append((a, b, label, style))
 
 
-box("title", "<b>How Quorum decides</b>", 40, 24, 400, 44,
+def n_params(name):
+    d = np.load(ROOT / "data" / "models" / f"{name}.npz")
+    return sum(int(np.asarray(d[k]).size) for k in d.files)
+
+
+g, t, f = n_params("general"), n_params("tampered"), n_params("face")
+spec, text = n_params("spectral"), n_params("text_crop")
+shift, op, alpha = predict.SHIFT, predict.OPERATING_POINT, predict.TAMPERED_SCALE
+
+box("title", "<b>Quorum &#8212; system architecture</b>"
+             "<br><font style='font-size:13px;color:#666666'>one frozen "
+             f"backbone &#183; {g + t + f:,} trained parameters &#183; one max()"
+             "</font>",
+    40, 18, 660, 58,
     "text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;",
-    font=26)
+    font=22)
+box("legend", "&#10052;&#65039; <b>FROZEN</b> pretrained, never updated"
+              "&#160;&#160;&#160;&#160;&#160;"
+              "&#128293; <b>TRAINED</b> fitted by us, linear",
+    780, 30, 450, 34, BOX + GREY, font=12)
 
-# --- the spine ------------------------------------------------------------
-box("upload", "📤<br><b>Upload</b><br>any image", 60, 120, 150, 90, BOX + GREEN)
-box("web", "<b>Web app</b><br>one server,<br>models already loaded",
-    260, 120, 180, 90, BOX + GREY)
-box("reader", "<b>Shared image reader</b><br>a frozen, general-purpose<br>"
-              "vision model &#8212; used once,<br>feeding all three detectors",
-    490, 112, 250, 106, BOX + GREY)
+# --- shared frozen backbone ----------------------------------------------
+box("upload", "<b>Input image</b><br>any size / format", 40, 148, 145, 72,
+    BOX + GREEN)
+box("clip", f"&#10052;&#65039; <b>CLIP {BACKBONE}</b><br>304M params &#183; fp16"
+            "<br><i>never fine-tuned</i>",
+    225, 140, 205, 88, BOX + FROZEN)
+box("v", "<b>v</b><br>768-d", 470, 154, 85, 60, BOX + GREY)
 
-# --- the three detectors --------------------------------------------------
-box("d1", "<b>Detector 1</b><br>the whole image<br>"
-          "<i>&#8220;was this generated?&#8221;</i>", 830, 20, 200, 92)
-box("d2", "<b>Detector 2</b><br>an edited patch<br>"
-          "<i>&#8220;was part of it changed?&#8221;</i>", 830, 130, 200, 92)
-box("d3", "<b>Detector 3</b><br>faces<br>"
-          "<i>&#8220;is this person real?&#8221;</i>", 830, 240, 200, 92)
+box("facedet", "&#10052;&#65039; <b>face_crop()</b><br>YuNet, on the PIXELS",
+    225, 300, 205, 60, BOX + FROZEN)
+box("fvec", "<b>f</b> = [CLIP(crop), log&#8322;px]<br><b>769-d</b>",
+    470, 296, 185, 68, BOX + GREY)
 
-box("max", "<b>Highest<br>score wins</b>", 1090, 128, 150, 96, BOX + ORANGE,
-    font=15)
-box("verdict", "<b>AI or Real</b><br>one number,<br>one answer",
-    1300, 122, 170, 108, BOX + GREEN, font=15)
+# --- the three branches that ARE the score -------------------------------
+box("gen", f"&#128293; <b>general</b><br>z<sub>g</sub> = w&#183;v + b<br>"
+           f"{g:,} params",
+    600, 92, 180, 74)
+box("tam", f"&#128293; <b>tampered</b><br>z<sub>t</sub> = {alpha}(w&#183;v + b)"
+           f"<br>{t:,} params",
+    600, 186, 180, 74)
+box("face", f"&#128293; <b>face</b><br>z<sub>f</sub> = w&#183;f + b<br>"
+            f"{f:,} params",
+    700, 296, 180, 74)
 
-txt("n_max", "Any <b>one</b> detector is enough.<br>They never have to agree "
-             "&#8212; that is<br>the point, and the name.",
-    1055, 240, 230, 60)
+box("zmax", "<b>z = max(z<sub>g</sub>, z<sub>t</sub>)</b>", 830, 92, 175, 48,
+    BOX + ORANGE)
+box("sig", f"<b>p = &#963;(z &#8722; {shift:.4f})</b>", 830, 158, 175, 48,
+    BOX + ORANGE)
+box("pred", "<b>pred = max(p, p<sub>face</sub>)</b>", 1055, 122, 195, 52,
+    BOX + ORANGE, font=14)
+box("verdict", "<b>AI</b> if pred &#8805; 0.5<br>"
+               f"<font style='font-size:10px'>&#8801; raw score &#8805; {op}"
+               "</font>",
+    1300, 120, 175, 56, BOX + GREEN, font=13)
 
-# --- what else the demo shows --------------------------------------------
-box("extras", "<b>Also shown, never counted</b>", 490, 340, 750, 32,
-    "text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;"
-    "fontColor=#9673a6;", font=14)
+txt("n_max", "<b>max(), not a vote.</b> Any ONE branch firing is enough &#8212; "
+             "the task is disjunctive:<br>an image is AI-touched if it is fully "
+             "synthetic <b>or</b> locally edited.",
+    830, 218, 430, 40)
+txt("n_face", "the only branch built on <b>different features</b><br>"
+              "(769-d, not the shared 768-d)",
+    895, 376, 270, 32)
 
-box("e1", "each detector's<br>own score", 490, 380, 170, 74, BOX + PURPLE, font=12)
-box("e2", "a box drawn<br>around the face", 680, 380, 170, 74, BOX + PURPLE, font=12)
-box("e3", "what the file says<br>about itself<br><i>(C2PA / camera)</i>",
-    870, 380, 180, 74, BOX + PURPLE, font=12)
-box("e4", "texture and text<br>checks", 1070, 380, 170, 74, BOX + PURPLE, font=12)
-
-txt("n_extra", "These help a person <b>judge</b> the verdict.<br>"
-               "None of them can <b>change</b> it.",
-    490, 468, 300, 46, "align=left;fontColor=#9673a6;")
-
-for a, b in [("upload", "web"), ("web", "reader"),
-             ("reader", "d1"), ("reader", "d2"), ("reader", "d3"),
-             ("d1", "max"), ("d2", "max"), ("d3", "max"), ("max", "verdict")]:
+for a, b in [("upload", "clip"), ("clip", "v"), ("v", "gen"), ("v", "tam"),
+             ("gen", "zmax"), ("tam", "zmax"), ("zmax", "sig"), ("sig", "pred"),
+             ("facedet", "fvec"), ("fvec", "face"), ("face", "pred"),
+             ("pred", "verdict")]:
     arrow(a, b)
-for e in ("e1", "e2", "e3", "e4"):
+arrow("upload", "facedet", "pixels", EDGE + "dashed=1;")
+arrow("clip", "fvec", "same frozen CLIP,<br>on the crop", EDGE + "dashed=1;")
+
+# --- built, shown, not scored --------------------------------------------
+box("shown", "<b>BUILT AND SHOWN IN THE DEMO &#8212; never enters pred</b>",
+    40, 442, 700, 28,
+    "text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;"
+    "fontColor=#9673a6;", font=13)
+box("spec", f"&#128293; <b>spectral</b><br>8 FFT features &#183; {spec} params"
+            "<br>0.6736 clean / 0.5471 worst",
+    40, 478, 225, 74, BOX + PURPLE, font=12)
+box("txtb", f"&#128293; <b>text</b><br>CLIP on an OCR crop &#183; {text} params"
+            "<br>transfers 0.8083, worth +0.0022",
+    285, 478, 245, 74, BOX + PURPLE, font=12)
+box("prov", "<b>provenance</b><br>C2PA / EXIF / XMP<br>"
+            "<i>evidence, not inference</i>",
+    550, 478, 195, 74, BOX + PURPLE, font=12)
+box("ui", "<b>content type &#183; reliability</b><br>face box &#183; "
+          "per-branch scores",
+    765, 478, 215, 74, BOX + PURPLE, font=12)
+
+for e in ("spec", "txtb", "prov", "ui"):
     arrow("verdict", e, "", SOFT)
 
-# --- the two claims a judge should leave with -----------------------------
-box("claim1", "<b>Two problems, not one</b><br>"
-              "A fully AI image, and a real photo with an AI-edited patch.<br>"
-              "A single detector scored <b>worse than a coin flip</b> on the "
-              "second &#8212; an edited photo is <i>mostly real</i>.<br>"
-              "So we stopped asking one model both questions.",
-    60, 560, 590, 130, BOX + "fillColor=#fff2cc;strokeColor=#d6b656;", font=13)
-box("claim2", "<b>Cheap to run, cheap to extend</b><br>"
-              "The reader is shared and never retrained; each detector is a "
-              "tiny layer on top.<br>"
-              "Whole trained system: <b>305 KB</b>. A new detector costs "
-              "almost nothing to add.",
-    690, 560, 550, 130, BOX + "fillColor=#fff2cc;strokeColor=#d6b656;", font=13)
+# --- measured and rejected ------------------------------------------------
+box("cut", "<b>BUILT, MEASURED, REJECTED</b>", 1010, 442, 480, 28,
+    "text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;"
+    "fontColor=#b85450;", font=13)
+box("fusion", "<b>fusion</b> &#8212; a learned combiner over 14 inputs<br>"
+              "<b>0.8511</b> against max()'s <b>0.8597</b>. It reaches parity "
+              "only by<br>becoming the general probe: it can match the headline "
+              "<b>or</b><br>detect tampering, never both.",
+    1010, 478, 480, 74, BOX + RED, font=12)
+
+txt("n_cut", "<b>Six</b> branches have lost their place in max(): spectral, "
+             "per-generator specialists, an MLP head,<br>face-tampered, "
+             "general-noise, modern-general. All six shared the 768-d features. "
+             "The one that<br>won brought different ones.",
+    40, 570, 900, 46)
+
+box("claim", "<b>Two problems, not one.</b> A fully AI image, and a real "
+             "photograph with an AI-edited patch.<br>"
+             "The general probe scores edited photos at <b>AUROC 0.37</b> "
+             "&#8212; worse than chance, because an<br>edited photo is "
+             "<i>globally authentic</i>. It is not failing; it is answering the "
+             "other question correctly.<br>So we stopped asking one model both.",
+    980, 570, 510, 96, BOX + YELLOW, font=12)
 
 
 def render():
@@ -131,9 +191,9 @@ def render():
     body = "\n".join(cells)
     return f'''<mxfile host="app.diagrams.net">
   <diagram name="Quorum system">
-    <mxGraphModel dx="1400" dy="800" grid="0" gridSize="10" guides="1" \
+    <mxGraphModel dx="1600" dy="900" grid="0" gridSize="10" guides="1" \
 tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" \
-pageWidth="1560" pageHeight="740" math="0" shadow="0">
+pageWidth="1550" pageHeight="700" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -148,3 +208,5 @@ pageWidth="1560" pageHeight="740" math="0" shadow="0">
 if __name__ == "__main__":
     OUT.write_text(render(), encoding="utf-8")
     print(f"{OUT.relative_to(ROOT)}  ({len(nodes)} nodes, {len(edges)} edges)")
+    print(f"  trained: general {g}, tampered {t}, face {f}  ->  {g + t + f:,}")
+    print(f"  shown, not scored: spectral {spec}, text {text}")

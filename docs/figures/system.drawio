@@ -1,100 +1,136 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Quorum system">
-    <mxGraphModel dx="1400" dy="800" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1560" pageHeight="740" math="0" shadow="0">
+    <mxGraphModel dx="1600" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1550" pageHeight="700" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title" value="&lt;b&gt;How Quorum decides&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontSize=26;" vertex="1" parent="1">
-          <mxGeometry x="40" y="24" width="400" height="44" as="geometry" />
+        <mxCell id="title" value="&lt;b&gt;Quorum &amp;#8212; system architecture&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:13px;color:#666666'&gt;one frozen backbone &amp;#183; 2,310 trained parameters &amp;#183; one max()&lt;/font&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontSize=22;" vertex="1" parent="1">
+          <mxGeometry x="40" y="18" width="660" height="58" as="geometry" />
         </mxCell>
-        <mxCell id="upload" value="📤&lt;br&gt;&lt;b&gt;Upload&lt;/b&gt;&lt;br&gt;any image" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="60" y="120" width="150" height="90" as="geometry" />
+        <mxCell id="legend" value="&amp;#10052;&amp;#65039; &lt;b&gt;FROZEN&lt;/b&gt; pretrained, never updated&amp;#160;&amp;#160;&amp;#160;&amp;#160;&amp;#160;&amp;#128293; &lt;b&gt;TRAINED&lt;/b&gt; fitted by us, linear" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f5f5f5;strokeColor=#999999;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="780" y="30" width="450" height="34" as="geometry" />
         </mxCell>
-        <mxCell id="web" value="&lt;b&gt;Web app&lt;/b&gt;&lt;br&gt;one server,&lt;br&gt;models already loaded" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f5f5f5;strokeColor=#999999;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="260" y="120" width="180" height="90" as="geometry" />
+        <mxCell id="upload" value="&lt;b&gt;Input image&lt;/b&gt;&lt;br&gt;any size / format" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="148" width="145" height="72" as="geometry" />
         </mxCell>
-        <mxCell id="reader" value="&lt;b&gt;Shared image reader&lt;/b&gt;&lt;br&gt;a frozen, general-purpose&lt;br&gt;vision model &amp;#8212; used once,&lt;br&gt;feeding all three detectors" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f5f5f5;strokeColor=#999999;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="490" y="112" width="250" height="106" as="geometry" />
+        <mxCell id="clip" value="&amp;#10052;&amp;#65039; &lt;b&gt;CLIP ViT-L-14-quickgelu&lt;/b&gt;&lt;br&gt;304M params &amp;#183; fp16&lt;br&gt;&lt;i&gt;never fine-tuned&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#eaf2fb;strokeColor=#6c8ebf;dashed=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="225" y="140" width="205" height="88" as="geometry" />
         </mxCell>
-        <mxCell id="d1" value="&lt;b&gt;Detector 1&lt;/b&gt;&lt;br&gt;the whole image&lt;br&gt;&lt;i&gt;&amp;#8220;was this generated?&amp;#8221;&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="830" y="20" width="200" height="92" as="geometry" />
+        <mxCell id="v" value="&lt;b&gt;v&lt;/b&gt;&lt;br&gt;768-d" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f5f5f5;strokeColor=#999999;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="470" y="154" width="85" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="d2" value="&lt;b&gt;Detector 2&lt;/b&gt;&lt;br&gt;an edited patch&lt;br&gt;&lt;i&gt;&amp;#8220;was part of it changed?&amp;#8221;&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="830" y="130" width="200" height="92" as="geometry" />
+        <mxCell id="facedet" value="&amp;#10052;&amp;#65039; &lt;b&gt;face_crop()&lt;/b&gt;&lt;br&gt;YuNet, on the PIXELS" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#eaf2fb;strokeColor=#6c8ebf;dashed=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="225" y="300" width="205" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="d3" value="&lt;b&gt;Detector 3&lt;/b&gt;&lt;br&gt;faces&lt;br&gt;&lt;i&gt;&amp;#8220;is this person real?&amp;#8221;&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="830" y="240" width="200" height="92" as="geometry" />
+        <mxCell id="fvec" value="&lt;b&gt;f&lt;/b&gt; = [CLIP(crop), log&amp;#8322;px]&lt;br&gt;&lt;b&gt;769-d&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f5f5f5;strokeColor=#999999;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="470" y="296" width="185" height="68" as="geometry" />
         </mxCell>
-        <mxCell id="max" value="&lt;b&gt;Highest&lt;br&gt;score wins&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=15;" vertex="1" parent="1">
-          <mxGeometry x="1090" y="128" width="150" height="96" as="geometry" />
+        <mxCell id="gen" value="&amp;#128293; &lt;b&gt;general&lt;/b&gt;&lt;br&gt;z&lt;sub&gt;g&lt;/sub&gt; = w&amp;#183;v + b&lt;br&gt;769 params" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="600" y="92" width="180" height="74" as="geometry" />
         </mxCell>
-        <mxCell id="verdict" value="&lt;b&gt;AI or Real&lt;/b&gt;&lt;br&gt;one number,&lt;br&gt;one answer" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=15;" vertex="1" parent="1">
-          <mxGeometry x="1300" y="122" width="170" height="108" as="geometry" />
+        <mxCell id="tam" value="&amp;#128293; &lt;b&gt;tampered&lt;/b&gt;&lt;br&gt;z&lt;sub&gt;t&lt;/sub&gt; = 1.25(w&amp;#183;v + b)&lt;br&gt;769 params" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="600" y="186" width="180" height="74" as="geometry" />
         </mxCell>
-        <mxCell id="n_max" value="Any &lt;b&gt;one&lt;/b&gt; detector is enough.&lt;br&gt;They never have to agree &amp;#8212; that is&lt;br&gt;the point, and the name." style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1055" y="240" width="230" height="60" as="geometry" />
+        <mxCell id="face" value="&amp;#128293; &lt;b&gt;face&lt;/b&gt;&lt;br&gt;z&lt;sub&gt;f&lt;/sub&gt; = w&amp;#183;f + b&lt;br&gt;772 params" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="700" y="296" width="180" height="74" as="geometry" />
         </mxCell>
-        <mxCell id="extras" value="&lt;b&gt;Also shown, never counted&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontColor=#9673a6;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="490" y="340" width="750" height="32" as="geometry" />
+        <mxCell id="zmax" value="&lt;b&gt;z = max(z&lt;sub&gt;g&lt;/sub&gt;, z&lt;sub&gt;t&lt;/sub&gt;)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="830" y="92" width="175" height="48" as="geometry" />
         </mxCell>
-        <mxCell id="e1" value="each detector's&lt;br&gt;own score" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="490" y="380" width="170" height="74" as="geometry" />
+        <mxCell id="sig" value="&lt;b&gt;p = &amp;#963;(z &amp;#8722; 1.4448)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="830" y="158" width="175" height="48" as="geometry" />
         </mxCell>
-        <mxCell id="e2" value="a box drawn&lt;br&gt;around the face" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="680" y="380" width="170" height="74" as="geometry" />
+        <mxCell id="pred" value="&lt;b&gt;pred = max(p, p&lt;sub&gt;face&lt;/sub&gt;)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1055" y="122" width="195" height="52" as="geometry" />
         </mxCell>
-        <mxCell id="e3" value="what the file says&lt;br&gt;about itself&lt;br&gt;&lt;i&gt;(C2PA / camera)&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="870" y="380" width="180" height="74" as="geometry" />
+        <mxCell id="verdict" value="&lt;b&gt;AI&lt;/b&gt; if pred &amp;#8805; 0.5&lt;br&gt;&lt;font style='font-size:10px'&gt;&amp;#8801; raw score &amp;#8805; 0.8092&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="120" width="175" height="56" as="geometry" />
         </mxCell>
-        <mxCell id="e4" value="texture and text&lt;br&gt;checks" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1070" y="380" width="170" height="74" as="geometry" />
+        <mxCell id="n_max" value="&lt;b&gt;max(), not a vote.&lt;/b&gt; Any ONE branch firing is enough &amp;#8212; the task is disjunctive:&lt;br&gt;an image is AI-touched if it is fully synthetic &lt;b&gt;or&lt;/b&gt; locally edited." style="text;html=1;whiteSpace=wrap;verticalAlign=middle;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="830" y="218" width="430" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="n_extra" value="These help a person &lt;b&gt;judge&lt;/b&gt; the verdict.&lt;br&gt;None of them can &lt;b&gt;change&lt;/b&gt; it." style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;fontSize=12;align=left;fontColor=#9673a6;" vertex="1" parent="1">
-          <mxGeometry x="490" y="468" width="300" height="46" as="geometry" />
+        <mxCell id="n_face" value="the only branch built on &lt;b&gt;different features&lt;/b&gt;&lt;br&gt;(769-d, not the shared 768-d)" style="text;html=1;whiteSpace=wrap;verticalAlign=middle;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="895" y="376" width="270" height="32" as="geometry" />
         </mxCell>
-        <mxCell id="claim1" value="&lt;b&gt;Two problems, not one&lt;/b&gt;&lt;br&gt;A fully AI image, and a real photo with an AI-edited patch.&lt;br&gt;A single detector scored &lt;b&gt;worse than a coin flip&lt;/b&gt; on the second &amp;#8212; an edited photo is &lt;i&gt;mostly real&lt;/i&gt;.&lt;br&gt;So we stopped asking one model both questions." style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="60" y="560" width="590" height="130" as="geometry" />
+        <mxCell id="shown" value="&lt;b&gt;BUILT AND SHOWN IN THE DEMO &amp;#8212; never enters pred&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="442" width="700" height="28" as="geometry" />
         </mxCell>
-        <mxCell id="claim2" value="&lt;b&gt;Cheap to run, cheap to extend&lt;/b&gt;&lt;br&gt;The reader is shared and never retrained; each detector is a tiny layer on top.&lt;br&gt;Whole trained system: &lt;b&gt;305 KB&lt;/b&gt;. A new detector costs almost nothing to add." style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="690" y="560" width="550" height="130" as="geometry" />
+        <mxCell id="spec" value="&amp;#128293; &lt;b&gt;spectral&lt;/b&gt;&lt;br&gt;8 FFT features &amp;#183; 9 params&lt;br&gt;0.6736 clean / 0.5471 worst" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="478" width="225" height="74" as="geometry" />
         </mxCell>
-        <mxCell id="e0" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="upload" target="web">
+        <mxCell id="txtb" value="&amp;#128293; &lt;b&gt;text&lt;/b&gt;&lt;br&gt;CLIP on an OCR crop &amp;#183; 772 params&lt;br&gt;transfers 0.8083, worth +0.0022" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="285" y="478" width="245" height="74" as="geometry" />
+        </mxCell>
+        <mxCell id="prov" value="&lt;b&gt;provenance&lt;/b&gt;&lt;br&gt;C2PA / EXIF / XMP&lt;br&gt;&lt;i&gt;evidence, not inference&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="550" y="478" width="195" height="74" as="geometry" />
+        </mxCell>
+        <mxCell id="ui" value="&lt;b&gt;content type &amp;#183; reliability&lt;/b&gt;&lt;br&gt;face box &amp;#183; per-branch scores" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="765" y="478" width="215" height="74" as="geometry" />
+        </mxCell>
+        <mxCell id="cut" value="&lt;b&gt;BUILT, MEASURED, REJECTED&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontColor=#b85450;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="442" width="480" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="fusion" value="&lt;b&gt;fusion&lt;/b&gt; &amp;#8212; a learned combiner over 14 inputs&lt;br&gt;&lt;b&gt;0.8511&lt;/b&gt; against max()'s &lt;b&gt;0.8597&lt;/b&gt;. It reaches parity only by&lt;br&gt;becoming the general probe: it can match the headline &lt;b&gt;or&lt;/b&gt;&lt;br&gt;detect tampering, never both." style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="478" width="480" height="74" as="geometry" />
+        </mxCell>
+        <mxCell id="n_cut" value="&lt;b&gt;Six&lt;/b&gt; branches have lost their place in max(): spectral, per-generator specialists, an MLP head,&lt;br&gt;face-tampered, general-noise, modern-general. All six shared the 768-d features. The one that&lt;br&gt;won brought different ones." style="text;html=1;whiteSpace=wrap;verticalAlign=middle;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="570" width="900" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="claim" value="&lt;b&gt;Two problems, not one.&lt;/b&gt; A fully AI image, and a real photograph with an AI-edited patch.&lt;br&gt;The general probe scores edited photos at &lt;b&gt;AUROC 0.37&lt;/b&gt; &amp;#8212; worse than chance, because an&lt;br&gt;edited photo is &lt;i&gt;globally authentic&lt;/i&gt;. It is not failing; it is answering the other question correctly.&lt;br&gt;So we stopped asking one model both." style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="980" y="570" width="510" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="upload" target="clip">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="web" target="reader">
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="clip" target="v">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="reader" target="d1">
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="v" target="gen">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="reader" target="d2">
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="v" target="tam">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="reader" target="d3">
+        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="gen" target="zmax">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="d1" target="max">
+        <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="tam" target="zmax">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="d2" target="max">
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="zmax" target="sig">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="d3" target="max">
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="sig" target="pred">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="max" target="verdict">
+        <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="facedet" target="fvec">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="e1">
+        <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="fvec" target="face">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="e2">
+        <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="face" target="pred">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="e3">
+        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="pred" target="verdict">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="e4">
+        <mxCell id="e12" value="pixels" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;" edge="1" parent="1" source="upload" target="facedet">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="same frozen CLIP,&lt;br&gt;on the crop" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;" edge="1" parent="1" source="clip" target="fvec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="spec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="txtb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="prov">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=1;" edge="1" parent="1" source="verdict" target="ui">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
