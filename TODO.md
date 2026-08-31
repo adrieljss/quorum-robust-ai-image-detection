@@ -420,6 +420,22 @@ Feeds Innovation & Problem Insight at 20%. Not an afterthought.
       unseen; training on GPT-image-2 retires that. Should have been a gate
       criterion, not a footnote
 
+### Open, asked 31 Aug — should the face branch be max over ALL faces?
+
+- [ ] **Measured, and the answer is "it would barely fire".** `face_crop()` scores
+      the single largest face. Scoring every face and taking the max is the same
+      disjunctive argument as the branch-level `max()`, and the multiplicity bias
+      it introduces turns out to cross no threshold (FPR +0.00% on both real
+      pools, though on only 35 multi-face images). The blocker is that
+      `MIN_FACE = 64px` drops **67% of the faces YuNet detects on COCO** and
+      strips the extra faces from **72% of multi-face images** — so on group
+      photos it has nothing new to score. Lowering the floor reintroduces the
+      "blurry ⇒ fake" shortcut from `HANDOVER-MODELS.md` §8.
+      `ERROR_ANALYSIS.md` §7.8, `scratchpad/multiface.py`
+- [ ] To settle it properly: a face-swap set **with bystanders in frame**. Every
+      face corpus we have is one-face-per-image, so the benefit is unpriceable
+      today while the cost is measured. Untested, not rejected
+
 ### Provenance — SHIPPED 31 Aug, as a side channel
 
 - [x] `quorum/provenance.py` — C2PA (JUMBF/caBX/RIFF, all three containers),

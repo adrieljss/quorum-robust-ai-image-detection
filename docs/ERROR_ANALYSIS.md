@@ -751,6 +751,46 @@ cached 768-d embeddings cannot reproduce the shipped score; `make_figures.py`
 now joins the `face_*` caches, but `pick_threshold.py` still cannot and says so.
 Reproduce: `scratchpad/face_max.py`, `face_grid.py`.
 
+**Why the branch scores ONE face and not `max(face1, face2, ...)`.** The
+disjunctive argument that makes the scorer a `max()` applies inside the face
+branch too: if any face in the image is synthetic, the image is AI-touched. It
+is not shipped, and the reason is measured rather than assumed.
+
+`max()` over N draws rises with N even when every draw is from the same
+distribution, so a real group photo gets more chances to produce one high score
+than a real portrait does. On 4,000 real images from the two pools §7.7 uses:
+
+```
+                        multi-face   a smaller face      mean      FPR at 0.5
+                            reals   outranks largest     lift    largest -> max
+real_holdout_laion             24             54.2%    +0.0598   16.15% -> 16.15%
+coco_train_reals               11             63.6%    +0.0764    3.64% ->  3.64%
+```
+
+**The bias is real and it crosses nothing.** Real faces score far from the cut
+(mean 0.05–0.21), so a +0.06 lift on the runner-up moves no image over 0.5. But
+35 multi-face images is a small sample: 0 crossings puts the 95% upper bound near
+8%, not at zero.
+
+**The reason to leave it alone is different, and sharper: it would barely fire.**
+`MIN_FACE = 64px` removes **67% of all faces YuNet detects on COCO** (median
+detected face 51px), and it takes multi-face COCO images from 29 down to 8 —
+**72% of them lose their extra faces entirely**. On exactly the group photos
+where max-over-faces is supposed to help, there is usually only one scorable
+face left.
+
+The obvious fix walks into a documented trap. Lowering the floor to admit those
+faces reintroduces the shortcut `HANDOVER-MODELS.md` §8 already measured: the
+probe partly reads *resampling texture* in upscaled crops, its blur gain
+concentrates in small faces (+0.047 vs +0.009), and that gain is anti-correlated
+with clean AUC across 14 generators (r = −0.685, p = 0.007). A 40px face
+upscaled to 224 teaches "blurry ⇒ fake", which is why the floor exists.
+
+So this is **untested, not rejected** — the distinction matters against §8's six
+branches, which all failed a gate. The benefit cannot be priced today because
+nothing on disk is a multi-face image with one manipulated face; a face-swap set
+with bystanders would settle it. Reproduce: `scratchpad/multiface.py`.
+
 ---
 
 ### 7.9 The one signal that is evidence rather than inference, and why it is still not in the score
