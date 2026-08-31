@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Quorum — AI Image Detector</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="icon" href="{{ url_for('static', filename='quorum-logo.png') }}" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,21 +17,17 @@
     <div class="ambient" aria-hidden="true"></div>
 
     <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="28" height="28">
-            <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="1.6" />
-            <circle cx="16" cy="16" r="4.5" fill="currentColor" />
-            <circle cx="16" cy="6.5" r="1.4" fill="currentColor" />
-            <circle cx="24.2" cy="20.2" r="1.4" fill="currentColor" />
-            <circle cx="7.8" cy="20.2" r="1.4" fill="currentColor" />
-          </svg>
-        </span>
-        <div>
-          <p class="brand-name">Quorum</p>
-          <p class="brand-tag">AI Image Detector</p>
+      <a href="/">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <img class="logo" src="{{ url_for('static', filename='quorum-logo.png') }}" alt="" />
+          </span>
+          <div>
+            <p class="brand-name">Quorum</p>
+            <p class="brand-tag">AI Image Detector</p>
+          </div>
         </div>
-      </div>
+      </a>
       {% if demo_mode %}
       <!-- <span class="demo-pill" title="Results are simulated until the model is connected">
         Demo preview
@@ -43,10 +39,10 @@
       <!-- ========== UPLOAD STAGE ========== -->
       <section id="upload-stage" class="stage is-active" aria-labelledby="upload-title">
         <div class="intro">
-          <h1 id="upload-title">Check if an image was generated</h1>
+          <h1 id="upload-title">Detect AI-Generated Images with <span class="confidence-highlight">Confidence</span></h1>
           <p class="lede">
-            Drop one photo or a whole batch. Quorum asks four independent models,
-            then shows a single, readable verdict.
+            Quorum uses four specialized machine learning models to analyze different aspects of an image, 
+            providing an assessment of whether it is AI-generated or authentic, along with the reasoning behind the result.
           </p>
         </div>
 
@@ -102,7 +98,7 @@
         <div class="status-card">
           <div class="spinner" aria-hidden="true"></div>
           <h2 id="loading-title">Reading the image</h2>
-          <p id="loading-copy" class="muted">Asking the general, face, text, and regularity models…</p>
+          <p id="loading-copy" class="muted">Asking the general, tamper, face, text, and regularity models…</p>
           <div class="progress-track" aria-hidden="true">
             <span class="progress-fill"></span>
           </div>
@@ -136,6 +132,7 @@
           <article id="result-card" class="result-card">
             <div class="result-visual">
               <img id="result-image" alt="Analyzed image" />
+              <div id="region-overlay" class="region-overlay" aria-hidden="true"></div>
               <div class="slide-meta">
                 <span id="slide-counter" class="slide-counter">1 / 1</span>
                 <span id="result-filename" class="filename"></span>
@@ -155,14 +152,9 @@
                   </svg>
                   <div class="confidence-copy">
                     <strong id="confidence-value">87%</strong>
-                    <span>confidence</span>
                   </div>
                 </div>
               </div>
-
-              <p id="explanation" class="explanation"></p>
-
-              <div class="chips" id="meta-chips"></div>
 
               <div class="signals">
                 <div class="signals-head">
@@ -171,7 +163,18 @@
                 </div>
                 <ul id="signal-list" class="signal-list"></ul>
               </div>
+
+              <div class="chips" id="meta-chips"></div>
+
+              <section id="regions-panel" class="regions-panel is-hidden" aria-labelledby="regions-title">
+                <div class="regions-head">
+                  <h3 id="regions-title">Detected regions</h3>
+                  <p class="muted tiny">Detected areas that contributed to this result.</p>
+                </div>
+                <ul id="region-list" class="region-list"></ul>
+              </section>
             </div>
+            <svg id="region-connectors" class="region-connectors" aria-hidden="true"></svg>
           </article>
 
           <button type="button" id="next-btn" class="nav-btn" aria-label="Next image">
@@ -183,9 +186,16 @@
       </section>
     </main>
 
-    <footer class="foot">
-      <p>Four models, one verdict. No single score decides on its own.</p>
-    </footer>
+    <footer class="footer">
+      <div class="footer-bottom">
+          <p>
+              Results are probabilistic and should not be considered definitive
+              proof of image authenticity.
+          </p>
+
+          <span>© 2026 Quorum · Built for TikTok TechJam 2026 Hackathon</span>
+      </div>
+  </footer>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   </body>

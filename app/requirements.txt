@@ -1,1 +1,21 @@
 flask>=3.0,<4
+
+# --- everything below is for the real analyzer (analyzer.py), which imports
+# quorum/ and predict.py from the parent repo. Not needed if you only run
+# with QUORUM_DEMO_MODE=1.
+#
+# NVIDIA GPU: install torch FIRST from the CUDA index, or pip gives you the
+# CPU-only wheel and every request pays a much slower CLIP forward pass:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu130
+# cu130 matches driver CUDA 13.x. Older driver -> cu128 or cu126.
+# Check with: python -c "import torch; print(torch.cuda.is_available())"
+torch>=2.6
+open_clip_torch
+numpy
+pandas
+pillow
+# opencv-python-headless avoids pulling in GUI/X11 deps on a server; swap for
+# opencv-python (matches the root requirements.txt) if you also do local dev
+# with cv2.imshow elsewhere in this environment.
+opencv-python-headless>=4.8
+scikit-learn

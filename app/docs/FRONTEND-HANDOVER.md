@@ -99,10 +99,19 @@ Notes:
       },
       "signals": {
         "general": 0.91,
+        "tampered": 0.22,
         "face": 0.83,
         "text": 0.62,
         "regularity": 0.40
       },
+      "regions": [
+        {
+          "type": "face",
+          "bbox": { "x": 532, "y": 212, "width": 341, "height": 414 },
+          "score": 0.91,
+          "verdict": "likely_ai"
+        }
+      ],
       "content_type": "portrait",
       "explanation": "Catchlights in the eyes are inconsistent; background signage is unresolved.",
       "degradation_estimate": "heavy_jpeg",
@@ -122,9 +131,11 @@ Notes:
 | `verdict` | `"likely_ai"` \| `"likely_real"` \| `"uncertain"` | **yes** | yes (headline) |
 | `confidence` | number `0–1` | **yes** | yes (ring) |
 | `signals.general` | number `0–1` or `null` | **yes** | yes (bar) |
+| `signals.tampered` | number `0–1` or `null` | **yes** | yes (bar) |
 | `signals.face` | number `0–1` or `null` | **yes** | yes (bar) |
 | `signals.text` | number `0–1` or `null` | **yes** | yes (bar) |
 | `signals.regularity` | number `0–1` or `null` | **yes** | yes (bar) |
+| `regions` | array of region objects | **yes** | yes (linked region indicators) |
 | `explanation` | string | recommended | yes (paragraph) |
 | `reliability` | `"high"` \| `"medium"` \| `"low"` | recommended | chip |
 | `content_type` | string | optional | chip |
@@ -135,6 +146,12 @@ Notes:
 **Missing-branch rule (do not break this):** if a model did not run (no face, no text, etc.), send `null`, **not** `0.0`. The UI labels that bar `n/a` / “not measured”. Zero would look like “the model says real.”
 
 Signal values are treated as **P(AI-generated)** in `[0, 1]`.
+
+`regions` is always an array. Each entry has a `type`, a `bbox` in original
+image pixels (`x`, `y`, `width`, `height`), a `score`, and a `verdict`. The UI
+uses the uploaded image's natural dimensions to place each region overlay and
+link it to its matching result indicator.
+See `BACKEND-HANDOVER.md` for the full region contract and coordinate details.
 
 Known `degradation_estimate` values the UI pretty-prints: `clean`, `light_jpeg`, `heavy_jpeg`, `blur`, `resize`, `noise`. Unknown strings are shown as-is.
 
@@ -190,6 +207,7 @@ Typical mapping:
 | UI field | Likely source |
 |---|---|
 | `signals.general` | calibrated general probe |
+| `signals.tampered` | calibrated localized-edit / tamper probe |
 | `signals.face` | calibrated face probe, or `null` if `face_present` is false |
 | `signals.text` | calibrated text probe, or `null` if no text |
 | `signals.regularity` | spectral / regularity scorer |
@@ -220,7 +238,7 @@ In `static/js/app.js` at the top:
 
 - `ANALYZE_URL` — change if you nest the app under a prefix.
 - `VERDICT_LABELS` / `DEGRADATION_LABELS` — add enums rather than inventing new JSON keys.
-- `SIGNAL_META` — add a fifth bar only if the API adds a fifth signal key.
+- `SIGNAL_META` — add a bar if the API adds another signal key.
 
 ### Step F — checklist before calling it done
 
