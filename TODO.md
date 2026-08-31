@@ -121,6 +121,10 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
 
 ### Albert — regularity / spectral
 - [x] `quorum/detectors/spectral.py` — scorer over the existing 8 features
+- [x] **Saved 31 Aug as `data/models/spectral.npz`** (9 params) so the demo can
+      display it. It had no weight file — it refit from 73 cached shards every
+      run, which the demo cannot do on a fresh clone. Display only; `predict.py`
+      never loads it and `self_check` still asserts three branches
 - [x] Per-variant AUC table — clean 0.7365 / worst 0.5596 (`blur10`)
 - [x] Confirmed classifier changes do not materially improve spectral; retain it
       as a complementary low-level signal for fusion
@@ -139,6 +143,12 @@ Full briefs in `docs/HANDOVER.md` §4 and §5.
       and a smaller transfer gap. Was a documented default, now a result. §9
 
 ### Kacey — text
+- [x] **Shipped 31 Aug as a DEMO SIGNAL, still cut from the scorer.**
+      `data/models/text_crop.npz` (770 params) is attempt 2 — CLIP on a warped
+      OCR crop, 769-d, the one that transfers at **0.8083**. Attempt 1 is
+      deliberately NOT saved: at **0.4627** it is below chance across corpora,
+      and a displayed number anti-correlated with the truth is worse than none.
+      `predict.py` loads neither. Same treatment as spectral
 - [x] Decide build or cut. **Cut.** Nine hours of OCR for a 7-parameter model
       against fusion being the critical path. Both slots stay in the fusion
       vector at neutral fill, so wiring it back later is one line
