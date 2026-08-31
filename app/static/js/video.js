@@ -12,7 +12,7 @@
   var MAX_VIDEO_BYTES = 45 * 1024 * 1024;
   var RING_CIRCUMFERENCE = 2 * Math.PI * 38;
   var VIDEO_EXTENSIONS = ["mp4", "webm", "mov"];
-  var SINGLE_SIGNALS = ["general", "tampered", "regularity"];
+  var SINGLE_SIGNALS = ["General", "Tampered", "Regularity"];
   var VERDICT_LABELS = { likely_ai: "Likely AI", likely_real: "Likely real", uncertain: "Uncertain" };
 
   var selectedVideo = null;
