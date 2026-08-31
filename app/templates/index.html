@@ -44,6 +44,10 @@
             Quorum uses four specialized machine learning models to analyze different aspects of an image, 
             providing an assessment of whether it is AI-generated or authentic, along with the reasoning behind the result.
           </p>
+          <nav class="analysis-tabs" aria-label="Analysis type">
+            <a class="analysis-tab is-active" href="{{ url_for('index') }}" aria-current="page">Image</a>
+            <a class="analysis-tab" href="{{ url_for('video') }}">Video</a>
+          </nav>
         </div>
 
         <form id="upload-form" class="upload-card" novalidate>
@@ -158,7 +162,7 @@
 
               <div class="signals">
                 <div class="signals-head">
-                  <h3>Model signals</h3>
+                  <h3>Single Predictions</h3>
                   <p class="muted tiny">Each bar is that model’s probability the image is AI-generated.</p>
                 </div>
                 <ul id="signal-list" class="signal-list"></ul>
@@ -168,10 +172,19 @@
 
               <section id="regions-panel" class="regions-panel is-hidden" aria-labelledby="regions-title">
                 <div class="regions-head">
-                  <h3 id="regions-title">Detected regions</h3>
+                  <h3 id="regions-title">Multi Predictions</h3>
                   <p class="muted tiny">Detected areas that contributed to this result.</p>
                 </div>
-                <ul id="region-list" class="region-list"></ul>
+                <div class="prediction-groups">
+                  <section class="prediction-group" aria-labelledby="accounted-title">
+                    <h4 id="accounted-title">Accounted</h4>
+                    <ul id="accounted-region-list" class="region-list"></ul>
+                  </section>
+                  <section class="prediction-group" aria-labelledby="unaccounted-title">
+                    <h4 id="unaccounted-title">Unaccounted</h4>
+                    <ul id="unaccounted-region-list" class="region-list"></ul>
+                  </section>
+                </div>
               </section>
             </div>
             <svg id="region-connectors" class="region-connectors" aria-hidden="true"></svg>

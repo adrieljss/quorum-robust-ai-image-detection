@@ -20,7 +20,10 @@ pillow
 opencv-python-headless>=4.8
 scikit-learn
 
-# signals.text only. ~10M ONNX OCR model, CPU, downloaded on first use. Omit it
-# and the demo still runs -- analyzer.py reports signals.text = null rather than
-# failing the request. Everything else above is required.
+# Two consumers now. RapidOCR locates text: the regions[] "text" entries are
+# bounding boxes only, and the text_crop probe scores a CLIP embedding of the
+# largest region. First use downloads its ~10MB detection + recognition ONNX
+# models. Omit it and the demo still runs -- analyzer.py reports
+# signals.text = null and no text regions, rather than failing the request.
+# Everything else above is required.
 rapidocr_onnxruntime

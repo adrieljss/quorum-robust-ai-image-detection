@@ -130,11 +130,11 @@ Notes:
 | `filename` | string | recommended | yes (overlay) |
 | `verdict` | `"likely_ai"` \| `"likely_real"` \| `"uncertain"` | **yes** | yes (headline) |
 | `confidence` | number `0–1` | **yes** | yes (ring) |
-| `signals.general` | number `0–1` or `null` | **yes** | yes (bar) |
-| `signals.tampered` | number `0–1` or `null` | **yes** | yes (bar) |
-| `signals.face` | number `0–1` or `null` | **yes** | yes (bar) |
-| `signals.text` | number `0–1` or `null` | **yes** | yes (bar) |
-| `signals.regularity` | number `0–1` or `null` | **yes** | yes (bar) |
+| `signals.general` | number `0–1` or `null` | **yes** | yes (Single Predictions bar) |
+| `signals.tampered` | number `0–1` or `null` | **yes** | yes (Single Predictions bar) |
+| `signals.face` | number `0–1` or `null` | **yes** | not shown as a top-level bar; paired with face regions |
+| `signals.text` | number `0–1` or `null` | **yes** | not shown as a top-level bar; paired with text regions |
+| `signals.regularity` | number `0–1` or `null` | **yes** | yes (Single Predictions bar) |
 | `regions` | array of region objects | **yes** | yes (linked region indicators) |
 | `explanation` | string | recommended | yes (paragraph) |
 | `reliability` | `"high"` \| `"medium"` \| `"low"` | recommended | chip |
@@ -150,7 +150,9 @@ Signal values are treated as **P(AI-generated)** in `[0, 1]`.
 `regions` is always an array. Each entry has a `type`, a `bbox` in original
 image pixels (`x`, `y`, `width`, `height`), a `score`, and a `verdict`. The UI
 uses the uploaded image's natural dimensions to place each region overlay and
-link it to its matching result indicator.
+link it to its matching result indicator. Face regions appear under
+“Accounted” and text regions under “Unaccounted”; other region types remain
+valid API data but are not displayed until the UI explicitly supports them.
 See `BACKEND-HANDOVER.md` for the full region contract and coordinate details.
 
 Known `degradation_estimate` values the UI pretty-prints: `clean`, `light_jpeg`, `heavy_jpeg`, `blur`, `resize`, `noise`. Unknown strings are shown as-is.

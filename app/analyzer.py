@@ -35,13 +35,17 @@ Notes worth keeping in mind:
     It is shown because a weak signal labelled as weak is context for a
     verdict; it is not in `confidence` and must not be. It is deliberately
     absent from st.probes, which is what score_embeddings() maxes over.
-  - regions: at most one entry, type "face". Same rule as above -- no
-    trained probe, no entry, so an empty list means "nothing scorable
-    found," not "nothing was checked." Only the single largest face is
-    scored, matching how face.npz was trained (one face per image, not an
-    ensemble). tampered does not get a region entry: it scores the whole
-    image (same CLIP embedding as general, just a different linear probe on
-    top), not a specific crop, so it has nothing to draw a box around.
+  - regions: face gets at most one entry (largest detected face, matching
+    how face.npz was trained on one face per image, not an ensemble), always
+    with a real score/verdict. text gets up to MAX_TEXT_REGIONS entries
+    (RapidOCR locations, most-confident first) with score/verdict always
+    null -- OCR finds WHERE text is but nothing scores whether it is
+    AI-generated, so there is nothing honest to put in those fields. This is
+    a deliberate exception to "every region has a score": the request was to
+    surface detected text without it implying or affecting a verdict.
+    tampered does not get a region entry at all: it scores the whole image
+    (same CLIP embedding as general, a different linear probe on top), not a
+    specific crop, so there is no box to draw for it.
   - _face_bbox() re-runs face detection instead of editing
     quorum/features.py to have face_crop() return the box it already
     computes internally. That file is shared with the training pipeline, so
@@ -94,7 +98,14 @@ class _State:
 
         self.shipped = shipped
         self.embedder = Embedder()
-        self.probes = shipped.load_probes()  # [(w_general, b), (w_tampered, b)]
+        self.ocr = None  # lazy: only construct RapidOCR if a request needs it
+        # load_probes() pre-scales tampered's (w, b) by shipped.TAMPERED_SCALE
+        # (currently 1.25) as of the three-branch predict.py update. That scale
+        # is exactly right for feeding st.probes back into score_embeddings()
+        # below, but it means self.tampered_w/b are NOT on the same scale
+        # fusion.npz's cal_tampered was fitted against -- see the unscaling step
+        # in analyze_image() where signals.tampered is computed.
+        self.probes = shipped.load_probes()  # [(w_general, b), (w_tampered*1.25, b*1.25)]
         self.general_w = np.asarray(self.probes[0][0], dtype=np.float64)
         self.general_b = float(self.probes[0][1])
         if len(self.probes) > 1:
@@ -212,6 +223,60 @@ def _face_bbox(img: Image.Image) -> Optional[dict]:
     }
 
 
+MAX_TEXT_REGIONS = 10  # UI cap on a screenshot/document with dozens of words
+
+
+def _text_regions(img: Image.Image, st: "_State") -> list:
+    """[{"type": "text", "bbox": {...}, "score": None, "verdict": None}, ...]
+
+    Uses RapidOCR only to LOCATE text, never to judge it -- there is no
+    saved, trained probe for whether detected text is AI-generated (see
+    module docstring), so score/verdict are always null here, deliberately
+    outside the usual "regions always have a score" convention. Runs on
+    every image regardless of content_type, so a sign or caption in a
+    non-"text" photo is still found -- OCR is the slow part of this
+    project, and that cost is accepted here on purpose rather than skipped
+    based on a guess.
+
+    RapidOCR returns a 4-point quadrilateral per detection (text can be
+    rotated); this collapses each to its axis-aligned bounding box to match
+    every other region's {x, y, width, height} shape, at the cost of a
+    slightly loose box on tilted text.
+
+    The engine itself (st.ocr) is constructed once and cached on _State,
+    same as the CLIP embedder -- quorum.detectors.text._ocr() builds a new
+    RapidOCR() on every call, which is fine for a one-off training script
+    but wasteful across many requests in a long-lived server process.
+    """
+    if st.ocr is None:
+        from rapidocr_onnxruntime import RapidOCR
+        st.ocr = RapidOCR()
+
+    res, _ = st.ocr(np.asarray(img.convert("RGB")))
+    if not res:
+        return []
+    # RapidOCR rows are [box(4x2), text, confidence]; keep the most confident
+    # detections when there are more than MAX_TEXT_REGIONS.
+    res = sorted(res, key=lambda r: float(r[2]), reverse=True)[:MAX_TEXT_REGIONS]
+    out = []
+    for box, _text, _conf in res:
+        pts = np.asarray(box, dtype=np.float64)
+        x0, y0 = pts.min(axis=0)
+        x1, y1 = pts.max(axis=0)
+        out.append({
+            "type": "text",
+            "bbox": {
+                "x": int(round(x0)),
+                "y": int(round(y0)),
+                "width": int(round(x1 - x0)),
+                "height": int(round(y1 - y0)),
+            },
+            "score": None,
+            "verdict": None,
+        })
+    return out
+
+
 def _content_type(general_vec: np.ndarray) -> str:
     """CLIP zero-shot label, reusing the embedding already computed."""
     from quorum.fusion import CONTENT, content_onehot
@@ -286,20 +351,27 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     tampered_raw = (float(general_vec @ st.tampered_w + st.tampered_b)
                      if st.tampered_w is not None else None)
 
-    # THE shipped score -- see module docstring, do not recompute by hand.
-    confidence = float(st.shipped.score_embeddings(general_vec[None, :], st.probes)[0])
-    verdict = _verdict_from_score(confidence)
-
     general_cal = _sigmoid(general_raw)
-    tampered_cal = _platt(tampered_raw, st.cal_tampered) if tampered_raw is not None else None
+    # tampered_raw comes from st.probes, which load_probes() now pre-scales by
+    # shipped.TAMPERED_SCALE. That scale is correct for score_embeddings() below
+    # (it uses st.probes directly), but fusion.npz's cal_tampered was fitted on
+    # the UNSCALED decision value -- undo the scale before calibrating this
+    # display-only copy, or the number shown here reads on the wrong axis.
+    tampered_cal = (_platt(tampered_raw / st.shipped.TAMPERED_SCALE, st.cal_tampered)
+                     if tampered_raw is not None else None)
 
     face_cal = None
+    face_shipped = 0.0  # predict.face_score()'s own fill for "no face": 0.0, not 0.5
     regions = []
     if face_present:
         z = (np.log2(face_px) - st.face_px_mu) / st.face_px_sd
         design = np.concatenate([face_vec, [z]])
         face_raw = float(design @ st.face_w + st.face_b)
         face_cal = _platt(face_raw, st.cal_face)
+        # Same formula as predict.face_score(), reusing the face_vec/face_px
+        # already computed above -- calling predict.face_score() fresh here
+        # would re-run detection and a second CLIP pass for no reason.
+        face_shipped = 1.0 / (1.0 + np.exp(-(face_raw - st.shipped.SHIFT)))
 
         bbox = _face_bbox(img)
         if bbox is not None:
@@ -346,6 +418,21 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
             z = (np.log2(max(text_px, 1.0)) - st.text_px_mu) / st.text_px_sd
             text_cal = _sigmoid(float(np.append(v, z) @ st.text_w + st.text_b))
 
+    # Runs regardless of face_present / content_type -- see _text_regions()
+    # docstring for why this always scans rather than skipping when it looks
+    # unnecessary. Shares the OCR engine with signals.text above.
+    regions.extend(_text_regions(img, st))
+
+    # THE shipped score -- see module docstring, do not recompute by hand.
+    # Since the face branch joined predict.py this is a THREE-branch max
+    # (general, tampered, face). Omitting face= here silently reverts to the
+    # old two-branch score and under-reports confidence on every image with a
+    # face -- on test-images/fake1.png that is 0.4588 against 0.5115, which
+    # crosses the verdict boundary.
+    confidence = float(st.shipped.score_embeddings(
+        general_vec[None, :], st.probes, face=np.array([face_shipped]))[0])
+    verdict = _verdict_from_score(confidence)
+
     content_type = _content_type(general_vec)
     reliability = _reliability(confidence, face_present, general_cal, face_cal)
     explanation = _explanation(verdict, general_cal, tampered_cal, face_cal, content_type)
@@ -384,5 +471,3 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
         "reliability": reliability,
         "regions": regions,
     }
- 
- 
