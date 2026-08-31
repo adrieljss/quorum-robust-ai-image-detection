@@ -22,13 +22,16 @@ Notes worth keeping in mind:
     confidence: it cannot be measured on any eval set we have, because
     normalise() strips exactly what it reads. Read that module's docstring
     before wiring declares_ai into a score.
-  - signals.regularity is always None for a different reason: the spectral
-    branch (quorum/detectors/spectral.py) DOES exist and IS measured, but
-    its own file says it must not enter the combiner -- 0.6736 clean AUC,
-    collapsing to 0.5471 under noise, worse than the shipped probe alone in
-    every configuration tested (TODO-GENERAL-SPECTRAL.md). This is a
-    deliberate exclusion, not a missing piece -- do not wire it in without
-    re-checking those numbers first.
+  - signals.regularity IS populated (quorum/detectors/spectral.py's own
+    saved probe + fusion.npz's cal_spectral), but display-only, the same as
+    text region boxes -- it never touches confidence, verdict, reliability,
+    or explanation below. spectral.py's own docstring is explicit that this
+    branch must not enter the combiner: 0.6736 clean AUC, collapsing to
+    0.5471 under noise, worse than the shipped probe alone in every
+    configuration tested. Wiring it into anything that decides the verdict
+    would need that measurement to change first, not just a code change.
+    Falls back to None if spectral.npz is absent, same as every other
+    optional branch.
   - regions: face gets at most one entry (largest detected face, matching
     how face.npz was trained on one face per image, not an ensemble), always
     with a real score/verdict. text gets up to MAX_TEXT_REGIONS entries
@@ -113,16 +116,16 @@ class _State:
             self.face_px_mu = float(z["px_mu"])
             self.face_px_sd = float(z["px_sd"])
 
-        # DISPLAY ONLY, and it is not in self.probes for that reason -- probes
-        # is what score_embeddings() maxes over. 8 FFT features, not the 768-d
-        # embedding, so it could not ride that matmul even if it were wanted.
-        try:
+        # Optional: quorum/detectors/spectral.py's own docstring says this
+        # branch must never enter the scorer (measured worse than chance in
+        # combination -- clean 0.6736, collapsing to 0.5471 under noise), so
+        # it is display-only here too, same as text. Absent -> None, same
+        # missing-branch handling as everything else.
+        if SPECTRAL_MODEL.exists():
             with np.load(SPECTRAL_MODEL) as z:
                 self.spectral_w = np.asarray(z["w"], dtype=np.float64).ravel()
                 self.spectral_b = float(z["b"][0])
-        except FileNotFoundError:
-            # `python -m quorum.detectors.spectral --save` was never run. The
-            # signal goes back to null rather than the demo failing to start.
+        else:
             self.spectral_w = self.spectral_b = None
 
         with np.load(FUSION_MODEL) as z:  # calibration only, not fusion's verdict
@@ -369,6 +372,16 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
     # unnecessary.
     regions.extend(_text_regions(img, st))
 
+    # Display-only, like text -- see the spectral note in the module
+    # docstring and in _State.__init__. Never touches confidence, verdict,
+    # reliability, or explanation below; only signals.regularity.
+    regularity_cal = None
+    if st.spectral_w is not None:
+        from quorum.features import spectral_features
+        spec = spectral_features(img).astype(np.float64)
+        spectral_raw = float(spec @ st.spectral_w + st.spectral_b)
+        regularity_cal = _platt(spectral_raw, st.cal_spectral)
+
     # THE shipped score -- see module docstring, do not recompute by hand.
     # Since the face branch joined predict.py, this is a THREE-branch max
     # (general, tampered, face) -- omitting face= here would silently revert
@@ -402,10 +415,7 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
             "face": round(face_cal, 4) if face_cal is not None else None,
             "tampered": round(tampered_cal, 4) if tampered_cal is not None else None,
             "text": None,        # branch cut -- see module docstring
-            # Near-chance on its own (0.6736 clean, 0.5471 under noise) and NOT
-            # in the score -- label it accordingly in the UI, it is context for
-            # a verdict rather than a second opinion on one.
-            "regularity": round(spectral_cal, 4) if spectral_cal is not None else None,
+            "regularity": round(regularity_cal, 4) if regularity_cal is not None else None,
         },
         "content_type": content_type,
         "explanation": explanation,

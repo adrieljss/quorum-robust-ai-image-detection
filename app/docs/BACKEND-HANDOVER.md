@@ -2,7 +2,7 @@
 
 This document describes additions to the API contract defined in `FRONTEND-HANDOVER.md`. It does not replace that document; read them together.
 
-Sections 2–5 describe the `regions` field. The `face`-only version of this was already folded into `FRONTEND-HANDOVER.md`'s own example response — but these sections have since been updated again to add a `text` region type (section 4), which has NOT been folded in yet. Do not skip 2–5 as "already handled"; re-check section 4 specifically. Section 6 describes `signals.tampered`, and section 7 describes new `provenance` fields — neither has been folded into `FRONTEND-HANDOVER.md` yet either.
+Sections 2–5 describe the `regions` field. The `face`-only version of this was already folded into `FRONTEND-HANDOVER.md`'s own example response — but these sections have since been updated again to add a `text` region type (section 4), which has NOT been folded in yet. Do not skip 2–5 as "already handled"; re-check section 4 specifically. Section 6 describes `signals.tampered`, section 7 describes new `provenance` fields, and section 8 describes `signals.regularity` now carrying real values — none of the three has been folded into `FRONTEND-HANDOVER.md` yet.
 
 ---
 
@@ -154,3 +154,11 @@ A suggested per-region label: `region.score == null ? region.type : \`${region.t
 | `fields` | array | Every individual metadata field that was read, regardless of `kind`. Each entry: `where` (`"exif"`, `"xmp"`, `"png:<key>"`, or `"c2pa"`), `key` (the field name), `value` (the raw value, display-safe), `kind` (`"ai"`, `"camera"`, `"editor"`, or `null` if unclassified). |
 
 This never affects `confidence` or `verdict` — metadata is evidence about a file's declared origin, not a signal any branch was trained to score, so it cannot be measured the way `signals.*` can (normalisation strips it before any branch sees the image). Treat it as informational only, the same way `exif_software` already was.
+
+---
+
+## 8. `signals.regularity` now has real values
+
+`FRONTEND-HANDOVER.md` already documented `regularity` as `number 0–1, or null` — the shape hasn't changed. What's new is the value: it was always `null` before (`"n/a"` on every image, per that earlier screenshot in the group chat), because no trained model backed it. A spectral probe now does, so this key will show a real percentage on images where the model that produces it is available.
+
+**This value carries no weight in `verdict` or `confidence`, on purpose.** The branch behind it (`quorum/detectors/spectral.py`) is measured, by its own author, to be worse than the shipped scorer in every configuration tested, and its docstring says explicitly that it must not enter the combiner. It is shown for the same reason `general`/`face`/`tampered` are shown — as one more signal a judge can look at — not because it informs the headline number. Do not build any UI logic that treats a high `regularity` value as agreeing or disagreeing with `verdict`; it isn't part of how `verdict` was computed.
