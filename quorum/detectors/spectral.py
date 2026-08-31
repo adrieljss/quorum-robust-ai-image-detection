@@ -18,6 +18,13 @@ It loses under max() -- which inherits the worst branch by construction, and a
 near-chance branch just pushes real photographs upward -- and it still loses
 under a learned combiner fitted on the carve, i.e. given its best shot.
 predict.py does not call this, deliberately.
+
+It IS shown in the demo, as one displayed signal beside the verdict, which is
+why `python -m quorum.detectors.spectral --save` exists. The demo has no
+embedding cache -- it runs on a fresh clone against an uploaded image -- so a
+branch it displays has to be a saved .npz, not a refit. Nine parameters, 3 KB.
+Saving it does NOT put it in the scorer; predict.py never loads this file, and
+predict.self_check asserts the shipped scorer is still exactly three branches.
 """
 import sys
 from pathlib import Path
@@ -26,9 +33,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
 
-from quorum.detectors.general import auc_by_variant, fit, load
+from quorum.detectors.general import MODELS, auc_by_variant, fit, load, save
 
 CALIB_SPLIT = "calib_ood"
+MODEL = MODELS / "spectral.npz"
 
 
 def train(train_source="spec_sid_train"):
@@ -54,6 +62,15 @@ def zero_rows(source="spec_so_fake_ood"):
 
 
 if __name__ == "__main__":
+    if "--save" in sys.argv:
+        clf, rows = train()
+        save(clf, MODEL)
+        print(f"spectral probe -> {MODEL}  "
+              f"({clf.coef_.size + clf.intercept_.size} parameters, "
+              f"{MODEL.stat().st_size / 1024:.1f} KB)")
+        print("DISPLAY ONLY. predict.py does not load this; see the docstring.")
+        raise SystemExit
+
     scores = evaluate()
     print(scores.to_string(float_format="%.4f"))
     print(f"\nclean {scores['clean']:.4f}  worst {scores.min():.4f} "

@@ -22,13 +22,13 @@ Notes worth keeping in mind:
     confidence: it cannot be measured on any eval set we have, because
     normalise() strips exactly what it reads. Read that module's docstring
     before wiring declares_ai into a score.
-  - signals.regularity is always None for a different reason: the spectral
-    branch (quorum/detectors/spectral.py) DOES exist and IS measured, but
-    its own file says it must not enter the combiner -- 0.6736 clean AUC,
-    collapsing to 0.5471 under noise, worse than the shipped probe alone in
-    every configuration tested (TODO-GENERAL-SPECTRAL.md). This is a
-    deliberate exclusion, not a missing piece -- do not wire it in without
-    re-checking those numbers first.
+  - signals.regularity IS reported, from data/models/spectral.npz, and is
+    DISPLAY ONLY. The branch is near-chance -- 0.6736 clean AUC, collapsing
+    to 0.5471 under noise -- and loses in every combination tested, under
+    max() and under a learned combiner both (see that module's docstring).
+    It is shown because a weak signal labelled as weak is context for a
+    verdict; it is not in `confidence` and must not be. It is deliberately
+    absent from st.probes, which is what score_embeddings() maxes over.
   - regions: at most one entry, type "face". Same rule as above -- no
     trained probe, no entry, so an empty list means "nothing scorable
     found," not "nothing was checked." Only the single largest face is
@@ -81,6 +81,7 @@ class _State:
     def __init__(self):
         from quorum.embed import Embedder
         from quorum.detectors.face import MODEL as FACE_MODEL
+        from quorum.detectors.spectral import MODEL as SPECTRAL_MODEL
         from quorum.fusion import MODEL as FUSION_MODEL
         import predict as shipped
 
@@ -101,9 +102,22 @@ class _State:
             self.face_px_mu = float(z["px_mu"])
             self.face_px_sd = float(z["px_sd"])
 
+        # DISPLAY ONLY, and it is not in self.probes for that reason -- probes
+        # is what score_embeddings() maxes over. 8 FFT features, not the 768-d
+        # embedding, so it could not ride that matmul even if it were wanted.
+        try:
+            with np.load(SPECTRAL_MODEL) as z:
+                self.spectral_w = np.asarray(z["w"], dtype=np.float64).ravel()
+                self.spectral_b = float(z["b"][0])
+        except FileNotFoundError:
+            # `python -m quorum.detectors.spectral --save` was never run. The
+            # signal goes back to null rather than the demo failing to start.
+            self.spectral_w = self.spectral_b = None
+
         with np.load(FUSION_MODEL) as z:  # calibration only, not fusion's verdict
             self.cal_face = (float(z["cal_face"][0]), float(z["cal_face"][1]))
             self.cal_tampered = (float(z["cal_tampered"][0]), float(z["cal_tampered"][1]))
+            self.cal_spectral = (float(z["cal_spectral"][0]), float(z["cal_spectral"][1]))
             # cal_general is intentionally NOT loaded. The current general.npz
             # update, that probe's Platt scaling is folded directly into its
             # saved weights (quorum/detectors/general.py:calibrate(), confirmed
@@ -278,6 +292,17 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
         # else: face_crop() found a face but re-detection above didn't --
         # shouldn't happen, but fail closed (no region) rather than guess a box.
 
+    # Reads PIXELS, not the embedding: a centre crop at NATIVE resolution, since
+    # a resize destroys the high frequencies this branch exists to look at.
+    # Display only -- `confidence` above is already final and cannot see this.
+    spectral_cal = None
+    if st.spectral_w is not None:
+        from quorum.features import spectral_features
+        sf = np.asarray(spectral_features(img), dtype=np.float64)
+        if np.abs(sf).sum() > 0:   # 25 rows in spec_so_fake_ood come out all-zero
+            spectral_cal = _platt(float(sf @ st.spectral_w + st.spectral_b),
+                                  st.cal_spectral)
+
     content_type = _content_type(general_vec)
     reliability = _reliability(confidence, face_present, general_cal, face_cal)
     explanation = _explanation(verdict, general_cal, tampered_cal, face_cal, content_type)
@@ -302,7 +327,10 @@ def analyze_image(payload: bytes, filename: str = "") -> dict:
             "face": round(face_cal, 4) if face_cal is not None else None,
             "tampered": round(tampered_cal, 4) if tampered_cal is not None else None,
             "text": None,        # branch cut -- see module docstring
-            "regularity": None,  # spectral detector never built -- see module docstring
+            # Near-chance on its own (0.6736 clean, 0.5471 under noise) and NOT
+            # in the score -- label it accordingly in the UI, it is context for
+            # a verdict rather than a second opinion on one.
+            "regularity": round(spectral_cal, 4) if spectral_cal is not None else None,
         },
         "content_type": content_type,
         "explanation": explanation,
