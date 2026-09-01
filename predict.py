@@ -15,6 +15,13 @@ variants on either eval set. At matched false positives that is +0.96pp recall.
 It does NOT help on GPT-image-2, whose faces it scores 0.02-0.43; it carries the
 same recency blind spot as everything else here.
 
+`face` in max(...) above is really max(face1, face2, ..., faceN): face_score()
+runs every detected face in an image through the same probe and keeps the
+worst one, so a group photo needs only one AI face to flag the image. The
+measurements above still hold -- they were run on So-Fake-OOD, which is
+overwhelmingly single-face, so the multiface path barely fires on that eval
+set. It exists for real uploads, not to move the reported numbers.
+
 The score is shifted so that **0.5 is the operating point**. It was not before:
 0.5 is the sigmoid's default, nobody chose it, and on held-out test_ood it cost
 0.09 precision and flagged 27.6% of COCO photographs as AI-generated. The shift
@@ -173,24 +180,24 @@ def face_score(imgs, emb, face_model) -> np.ndarray:
 
     Crops go through in ONE batch. Detection is the cost, not the embedding.
     """
-    from quorum.features import face_crops
+    from quorum.features import face_crop_all
 
     out = np.zeros(len(imgs), np.float32)
     if face_model is None:
         return out
     w, b, mu, sd = face_model
-    crops, idx, px = [], [], []
+    crops, owner, px = [], [], []
     for i, im in enumerate(imgs):
-        for c, p in face_crops(im):
-            crops.append(c); idx.append(i); px.append(max(p, 1.0))
+        for c, p, _bbox in face_crop_all(im):
+            crops.append(c); owner.append(i); px.append(max(p, 1.0))
     if not crops:
         return out
     V = emb.embed_batch(crops)
     feat = np.column_stack([V, (np.log2(np.asarray(px)) - mu) / sd])
-    s = 1 / (1 + np.exp(-(feat @ w + b - SHIFT)))
-    # maximum.at, not out[idx] = s: idx repeats for a multi-face image and plain
-    # assignment would keep whichever face happened to be scored LAST.
-    np.maximum.at(out, idx, s)
+    scores = 1 / (1 + np.exp(-(feat @ w + b - SHIFT)))
+    # maximum.at, not out[owner] = scores: owner repeats for a multi-face image
+    # and plain assignment would keep whichever face happened to be scored LAST.
+    np.maximum.at(out, owner, scores)
     return out
 
 

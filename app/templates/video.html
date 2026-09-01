@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Quorum — AI Video Detector</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="icon" href="{{ url_for('static', filename='quorum-logo.png') }}" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,480;9..144,600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -13,10 +13,17 @@
   <body>
     <div class="ambient" aria-hidden="true"></div>
     <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true"><img class="logo" src="{{ url_for('static', filename='quorum-logo.png') }}" alt="" /></span>
-        <div><p class="brand-name">Quorum</p><p class="brand-tag">AI Video Detector</p></div>
-      </div>
+      <a href="/">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <img class="logo" src="{{ url_for('static', filename='quorum-logo.png') }}" alt="" />
+          </span>
+          <div>
+            <p class="brand-name">Quorum</p>
+            <p class="brand-tag">AI Image Detector</p>
+          </div>
+        </div>
+      </a>
     </header>
     <main class="shell">
       <section id="video-upload-stage" class="stage is-active" aria-labelledby="video-upload-title">
